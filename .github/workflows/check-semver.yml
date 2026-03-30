@@ -33,7 +33,7 @@ jobs:
             - name: Setup Rust
               run: rustup default stable
 
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
               with:
                   persist-credentials: false
                   submodules: recursive

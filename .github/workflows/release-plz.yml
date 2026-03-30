@@ -12,33 +12,18 @@ jobs:
     release-plz-release:
         name: Release-plz release
         runs-on: ubuntu-latest
-        container:
-            image: archlinux:base-devel
         if: ${{ github.repository_owner == 'wayle-rs' }}
         permissions:
             pull-requests: write
             contents: write
         steps:
-            - name: Install dependencies
-              run: |
-                  pacman --noconfirm --needed -Syu \
-                    git \
-                    rustup \
-                    clang \
-                    gtk4 \
-                    libpulse \
-                    fftw \
-                    libpipewire \
-                    systemd-libs
-
-            - name: Setup Rust
-              run: rustup default stable
-
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
               with:
                   fetch-depth: 0
                   persist-credentials: false
                   submodules: recursive
+
+            - uses: dtolnay/rust-toolchain@stable
 
             - uses: release-plz/action@v0.5
               with:
@@ -50,8 +35,6 @@ jobs:
     release-plz-pr:
         name: Release-plz PR
         runs-on: ubuntu-latest
-        container:
-            image: archlinux:base-devel
         if: ${{ github.repository_owner == 'wayle-rs' }}
         permissions:
             pull-requests: write
@@ -60,26 +43,13 @@ jobs:
             group: release-plz-${{ github.ref }}
             cancel-in-progress: false
         steps:
-            - name: Install dependencies
-              run: |
-                  pacman --noconfirm --needed -Syu \
-                    git \
-                    rustup \
-                    clang \
-                    gtk4 \
-                    libpulse \
-                    fftw \
-                    libpipewire \
-                    systemd-libs
-
-            - name: Setup Rust
-              run: rustup default stable
-
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
               with:
                   fetch-depth: 0
                   persist-credentials: false
                   submodules: recursive
+
+            - uses: dtolnay/rust-toolchain@stable
 
             - uses: release-plz/action@v0.5
               with:
