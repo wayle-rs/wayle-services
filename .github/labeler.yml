@@ -1,0 +1,67 @@
+"area:core":
+    - changed-files:
+          - any-glob-to-any-file: "wayle-core/**"
+
+"area:traits":
+    - changed-files:
+          - any-glob-to-any-file: "wayle-traits/**"
+
+"area:audio":
+    - changed-files:
+          - any-glob-to-any-file: "wayle-audio/**"
+
+"area:battery":
+    - changed-files:
+          - any-glob-to-any-file: "wayle-battery/**"
+
+"area:bluetooth":
+    - changed-files:
+          - any-glob-to-any-file: "wayle-bluetooth/**"
+
+"area:brightness":
+    - changed-files:
+          - any-glob-to-any-file: "wayle-brightness/**"
+
+"area:cava":
+    - changed-files:
+          - any-glob-to-any-file: "wayle-cava/**"
+
+"area:hyprland":
+    - changed-files:
+          - any-glob-to-any-file: "wayle-hyprland/**"
+
+"area:media":
+    - changed-files:
+          - any-glob-to-any-file: "wayle-media/**"
+
+"area:network":
+    - changed-files:
+          - any-glob-to-any-file: "wayle-network/**"
+
+"area:notification":
+    - changed-files:
+          - any-glob-to-any-file: "wayle-notification/**"
+
+"area:power-profiles":
+    - changed-files:
+          - any-glob-to-any-file: "wayle-power-profiles/**"
+
+"area:sysinfo":
+    - changed-files:
+          - any-glob-to-any-file: "wayle-sysinfo/**"
+
+"area:systray":
+    - changed-files:
+          - any-glob-to-any-file: "wayle-systray/**"
+
+"area:wallpaper":
+    - changed-files:
+          - any-glob-to-any-file: "wayle-wallpaper/**"
+
+"area:weather":
+    - changed-files:
+          - any-glob-to-any-file: "wayle-weather/**"
+
+"area:ci":
+    - changed-files:
+          - any-glob-to-any-file: ".github/**"

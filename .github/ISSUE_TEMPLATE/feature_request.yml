@@ -1,0 +1,57 @@
+name: Feature Request
+description: Suggest something new or a change to existing behavior.
+type: Feature
+body:
+    - type: checkboxes
+      attributes:
+          label: Quick check
+          options:
+              - label: I searched existing issues first.
+                required: true
+
+    - type: textarea
+      id: problem
+      attributes:
+          label: Problem or use case
+          description: What are you trying to do?
+      validations:
+          required: true
+
+    - type: textarea
+      id: solution
+      attributes:
+          label: Proposed solution
+      validations:
+          required: true
+
+    - type: textarea
+      id: alternatives
+      attributes:
+          label: Alternatives considered
+      validations:
+          required: false
+
+    - type: dropdown
+      id: crate
+      attributes:
+          label: Related crate
+          options:
+              - wayle-core
+              - wayle-traits
+              - wayle-audio
+              - wayle-battery
+              - wayle-bluetooth
+              - wayle-brightness
+              - wayle-cava
+              - wayle-hyprland
+              - wayle-media
+              - wayle-network
+              - wayle-notification
+              - wayle-power-profiles
+              - wayle-sysinfo
+              - wayle-systray
+              - wayle-wallpaper
+              - wayle-weather
+              - Not sure
+      validations:
+          required: false

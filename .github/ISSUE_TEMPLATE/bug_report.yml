@@ -1,0 +1,77 @@
+name: Bug Report
+description: Report a bug with a service crate.
+type: Bug
+body:
+    - type: checkboxes
+      attributes:
+          label: Quick check
+          options:
+              - label: I searched existing issues first.
+                required: true
+
+    - type: textarea
+      id: description
+      attributes:
+          label: Description
+      validations:
+          required: true
+
+    - type: textarea
+      id: repro
+      attributes:
+          label: Steps to reproduce
+          placeholder: |
+              1.
+              2.
+              3.
+      validations:
+          required: true
+
+    - type: textarea
+      id: expected
+      attributes:
+          label: Expected behavior
+      validations:
+          required: true
+
+    - type: dropdown
+      id: crate
+      attributes:
+          label: Affected crate
+          options:
+              - wayle-core
+              - wayle-traits
+              - wayle-audio
+              - wayle-battery
+              - wayle-bluetooth
+              - wayle-brightness
+              - wayle-cava
+              - wayle-hyprland
+              - wayle-media
+              - wayle-network
+              - wayle-notification
+              - wayle-power-profiles
+              - wayle-sysinfo
+              - wayle-systray
+              - wayle-wallpaper
+              - wayle-weather
+              - Not sure
+      validations:
+          required: true
+
+    - type: input
+      id: crate-version
+      attributes:
+          label: Crate version
+          placeholder: "0.1.0"
+      validations:
+          required: true
+
+    - type: textarea
+      id: logs
+      attributes:
+          label: Logs
+          description: Run with `RUST_LOG=debug` for verbose output.
+          render: shell
+      validations:
+          required: false
