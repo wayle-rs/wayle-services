@@ -3163,7 +3163,7 @@ dependencies = [
 
 [[package]]
 name = "wayle-audio"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "derive_more",
@@ -3182,7 +3182,7 @@ dependencies = [
 
 [[package]]
 name = "wayle-battery"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "derive_more",
@@ -3200,7 +3200,7 @@ dependencies = [
 
 [[package]]
 name = "wayle-bluetooth"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "derive_more",
@@ -3217,7 +3217,7 @@ dependencies = [
 
 [[package]]
 name = "wayle-brightness"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "derive_more",
  "futures",
@@ -3234,7 +3234,7 @@ dependencies = [
 
 [[package]]
 name = "wayle-cava"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bindgen",
  "cc",
@@ -3252,7 +3252,7 @@ dependencies = [
 
 [[package]]
 name = "wayle-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "futures",
  "schemars",
@@ -3267,7 +3267,7 @@ dependencies = [
 
 [[package]]
 name = "wayle-hyprland"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "derive_more",
@@ -3285,7 +3285,7 @@ dependencies = [
 
 [[package]]
 name = "wayle-media"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -3307,7 +3307,7 @@ dependencies = [
 
 [[package]]
 name = "wayle-network"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "bitflags 2.11.0",
@@ -3326,7 +3326,7 @@ dependencies = [
 
 [[package]]
 name = "wayle-notification"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "chrono",
@@ -3349,7 +3349,7 @@ dependencies = [
 
 [[package]]
 name = "wayle-power-profiles"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "derive_more",
@@ -3367,7 +3367,7 @@ dependencies = [
 
 [[package]]
 name = "wayle-sysinfo"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "derive_more",
  "futures",
@@ -3381,7 +3381,7 @@ dependencies = [
 
 [[package]]
 name = "wayle-systray"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -3404,11 +3404,11 @@ dependencies = [
 
 [[package]]
 name = "wayle-traits"
-version = "0.1.0"
+version = "0.1.1"
 
 [[package]]
 name = "wayle-wallpaper"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "derive_more",
  "futures",
@@ -3428,7 +3428,7 @@ dependencies = [
 
 [[package]]
 name = "wayle-weather"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "chrono",
