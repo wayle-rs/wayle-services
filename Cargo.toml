@@ -20,7 +20,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.92"
 repository = "https://github.com/wayle-rs/wayle-services"
@@ -55,9 +55,9 @@ tokio-stream = { version = "0.1.17", features = ["sync"] }
 tokio-util = "0.7.16"
 toml = "0.9.7"
 tracing = "0.1.41"
-wayle-core = { version = "0.1.0", path = "wayle-core" }
-wayle-cava = { version = "0.1.0", path = "wayle-cava", features = ["vendored"] }
-wayle-traits = { version = "0.1.0", path = "wayle-traits" }
+wayle-core = { version = "0.1.1", path = "wayle-core" }
+wayle-cava = { version = "0.1.1", path = "wayle-cava", features = ["vendored"] }
+wayle-traits = { version = "0.1.1", path = "wayle-traits" }
 wildcard = "0.3"
 zbus = { version = "5.11.0", default-features = false, features = ["tokio"] }
 
