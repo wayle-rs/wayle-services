@@ -74,3 +74,7 @@ pub trait Reactive {
     where
         Self: Sized;
 }
+
+#[doc = include_str!("../README.md")]
+#[cfg(doctest)]
+pub struct ReadmeDocTests;

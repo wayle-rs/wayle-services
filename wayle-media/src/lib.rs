@@ -120,3 +120,7 @@ pub use builder::MediaServiceBuilder;
 pub use dbus::{MediaProxy, SERVICE_NAME, SERVICE_PATH};
 pub use error::Error;
 pub use service::MediaService;
+
+#[doc = include_str!("../README.md")]
+#[cfg(doctest)]
+pub struct ReadmeDocTests;

@@ -96,3 +96,7 @@ pub mod wired;
 
 pub use error::Error;
 pub use service::NetworkService;
+
+#[doc = include_str!("../README.md")]
+#[cfg(doctest)]
+pub struct ReadmeDocTests;

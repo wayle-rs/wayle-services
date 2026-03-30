@@ -63,3 +63,7 @@ pub use builder::BrightnessServiceBuilder;
 pub use error::Error;
 pub use service::BrightnessService;
 pub use types::{DeviceName, Percentage};
+
+#[doc = include_str!("../README.md")]
+#[cfg(doctest)]
+pub struct ReadmeDocTests;

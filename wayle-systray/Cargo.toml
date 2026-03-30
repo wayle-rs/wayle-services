@@ -6,6 +6,7 @@ rust-version.workspace = true
 description = "System tray service for Wayland"
 repository.workspace = true
 license.workspace = true
+readme = "README.md"
 keywords = ["dbus", "statusnotifier", "systray", "wayland"]
 categories = ["api-bindings", "gui"]
 

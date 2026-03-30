@@ -105,3 +105,7 @@ mod watcher;
 pub use builder::SystemTrayServiceBuilder;
 pub use dbus::SystemTrayWayleProxy;
 pub use service::SystemTrayService;
+
+#[doc = include_str!("../README.md")]
+#[cfg(doctest)]
+pub struct ReadmeDocTests;

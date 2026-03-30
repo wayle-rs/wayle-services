@@ -122,3 +122,7 @@ pub use service::{WeatherErrorKind, WeatherService, WeatherStatus};
 pub use types::{
     Distance, Percentage, Precipitation, Pressure, Speed, Temperature, UvIndex, WindDirection,
 };
+
+#[doc = include_str!("../README.md")]
+#[cfg(doctest)]
+pub struct ReadmeDocTests;

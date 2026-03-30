@@ -165,3 +165,7 @@ pub mod volume;
 pub use builder::AudioServiceBuilder;
 pub use error::Error;
 pub use service::AudioService;
+
+#[doc = include_str!("../README.md")]
+#[cfg(doctest)]
+pub struct ReadmeDocTests;

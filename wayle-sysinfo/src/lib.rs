@@ -46,3 +46,7 @@ pub mod types;
 pub use builder::SysinfoServiceBuilder;
 pub use error::Error;
 pub use service::SysinfoService;
+
+#[doc = include_str!("../README.md")]
+#[cfg(doctest)]
+pub struct ReadmeDocTests;

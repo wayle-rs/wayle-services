@@ -122,3 +122,7 @@ pub use core::PowerProfiles;
 pub use builder::PowerProfilesServiceBuilder;
 pub use error::Error;
 pub use service::PowerProfilesService;
+
+#[doc = include_str!("../README.md")]
+#[cfg(doctest)]
+pub struct ReadmeDocTests;

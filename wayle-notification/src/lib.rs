@@ -95,3 +95,7 @@ pub use builder::NotificationServiceBuilder;
 pub use error::Error;
 pub use service::NotificationService;
 pub use wayle_proxy::WayleNotificationsProxy;
+
+#[doc = include_str!("../README.md")]
+#[cfg(doctest)]
+pub struct ReadmeDocTests;

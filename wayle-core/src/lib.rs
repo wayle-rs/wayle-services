@@ -40,3 +40,7 @@ pub const ROOT_PATH: &str = "/";
 
 /// D-Bus null object path (no associated object).
 pub const NULL_PATH: &str = "/";
+
+#[doc = include_str!("../README.md")]
+#[cfg(doctest)]
+pub struct ReadmeDocTests;

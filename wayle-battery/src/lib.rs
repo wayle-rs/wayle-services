@@ -76,3 +76,7 @@ pub mod types;
 pub use builder::BatteryServiceBuilder;
 pub use error::Error;
 pub use service::BatteryService;
+
+#[doc = include_str!("../README.md")]
+#[cfg(doctest)]
+pub struct ReadmeDocTests;

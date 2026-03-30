@@ -98,3 +98,7 @@ pub mod types;
 
 pub use error::Error;
 pub use service::BluetoothService;
+
+#[doc = include_str!("../README.md")]
+#[cfg(doctest)]
+pub struct ReadmeDocTests;

@@ -92,3 +92,7 @@ pub use types::{
     Address, BindData, CursorPosition, DeviceInfo, FocusHistoryId, MonitorId, ProcessId,
     ScreencastOwner, WorkspaceId, WorkspaceInfo, WorkspaceRule,
 };
+
+#[doc = include_str!("../README.md")]
+#[cfg(doctest)]
+pub struct ReadmeDocTests;

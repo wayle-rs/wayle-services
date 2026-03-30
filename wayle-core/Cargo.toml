@@ -6,6 +6,7 @@ rust-version.workspace = true
 description = "Core reactive primitives and D-Bus utilities for Wayle services"
 repository.workspace = true
 license.workspace = true
+readme = "README.md"
 
 [dependencies]
 futures.workspace = true

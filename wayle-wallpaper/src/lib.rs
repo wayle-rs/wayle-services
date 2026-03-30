@@ -121,3 +121,7 @@ pub use service::WallpaperService;
 pub use types::{
     ColorExtractor, ColorExtractorConfig, CyclingConfig, CyclingMode, FitMode, MonitorState,
 };
+
+#[doc = include_str!("../README.md")]
+#[cfg(doctest)]
+pub struct ReadmeDocTests;

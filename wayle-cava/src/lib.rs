@@ -144,3 +144,7 @@ pub use builder::CavaServiceBuilder;
 pub use error::{Error, Result};
 pub use service::CavaService;
 pub use types::{BarCount, Framerate, InputMethod};
+
+#[doc = include_str!("../README.md")]
+#[cfg(doctest)]
+pub struct ReadmeDocTests;
