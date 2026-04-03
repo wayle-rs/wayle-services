@@ -110,7 +110,7 @@ pub struct BacklightInfo {
     pub name: DeviceName,
     /// Controls primary device selection priority.
     pub backlight_type: BacklightType,
-    /// Raw value from `actual_brightness` sysfs attribute.
+    /// Raw value from `brightness` sysfs attribute.
     pub brightness: u32,
     /// Hardware ceiling from `max_brightness` sysfs attribute.
     pub max_brightness: u32,
