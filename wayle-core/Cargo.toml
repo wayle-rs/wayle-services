@@ -1,6 +1,6 @@
 [package]
 name = "wayle-core"
-version = "0.1.1"
+version = "0.1.2"
 edition.workspace = true
 rust-version.workspace = true
 description = "Core reactive primitives and D-Bus utilities for Wayle services"
