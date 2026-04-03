@@ -1,7 +1,7 @@
 [package]
 name = "wayle-hyprland"
 description = "Reactive Hyprland compositor state and event streaming"
-version = "0.1.1"
+version = "0.1.2"
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true
