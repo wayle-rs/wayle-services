@@ -43,7 +43,7 @@ pub(crate) fn read_device(name: &str) -> Result<BacklightInfo, Error> {
     let raw_type = read_attr(&base.join(ATTR_TYPE))?;
     let backlight_type = BacklightType::from_sysfs(&raw_type).unwrap_or(BacklightType::Raw);
 
-    let brightness = read_u32(&base.join(ATTR_ACTUAL_BRIGHTNESS))?;
+    let brightness = read_u32(&base.join(ATTR_BRIGHTNESS))?;
     let max_brightness = read_u32(&base.join(ATTR_MAX_BRIGHTNESS))?;
 
     Ok(BacklightInfo {
