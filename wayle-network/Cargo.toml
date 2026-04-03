@@ -1,7 +1,7 @@
 [package]
 name = "wayle-network"
 description = "WiFi and wired network management"
-version.workspace = true
+version = "0.1.1"
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true

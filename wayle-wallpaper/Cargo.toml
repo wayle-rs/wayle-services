@@ -1,7 +1,7 @@
 [package]
 name = "wayle-wallpaper"
 description = "Wallpaper management with cycling and color extraction"
-version.workspace = true
+version = "0.1.1"
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true
