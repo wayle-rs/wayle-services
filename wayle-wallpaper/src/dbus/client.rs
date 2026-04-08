@@ -70,4 +70,10 @@ pub trait Wallpaper {
     /// The monitor used for color extraction theming (empty = default).
     #[zbus(property)]
     fn theming_monitor(&self) -> Result<String>;
+
+    /// Fired when color extraction finishes.Useful if you need
+    /// read the new color palette from the cached files for
+    /// matugen/pywal/wallust.
+    #[zbus(signal)]
+    fn colors_extracted(&self) -> Result<()>;
 }

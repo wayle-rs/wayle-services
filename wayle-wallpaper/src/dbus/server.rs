@@ -168,4 +168,10 @@ impl WallpaperDaemon {
     pub async fn theming_monitor(&self) -> String {
         self.service.theming_monitor.get().unwrap_or_default()
     }
+
+    /// Emitted when color extraction finishes.
+    #[zbus(signal)]
+    pub async fn colors_extracted(
+        emitter: &zbus::object_server::SignalEmitter<'_>,
+    ) -> zbus::Result<()>;
 }

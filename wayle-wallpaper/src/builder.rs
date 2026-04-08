@@ -9,7 +9,7 @@ use zbus::Connection;
 
 use crate::{
     backend::{TransitionConfig, spawn_daemon_if_needed},
-    dbus::{SERVICE_NAME, SERVICE_PATH, WallpaperDaemon},
+    dbus::{self, SERVICE_NAME},
     error::Error,
     service::WallpaperService,
     tasks::{spawn_color_extractor, spawn_output_watcher},
@@ -58,7 +58,7 @@ impl WallpaperServiceBuilder {
         debug!(elapsed_ms = start.elapsed().as_millis(), "D-Bus connected");
 
         let service = self.create_service(&connection);
-        Self::register_dbus(&connection, Arc::clone(&service)).await?;
+        dbus::register(&connection, &service).await?;
         debug!(elapsed_ms = start.elapsed().as_millis(), "D-Bus registered");
 
         Self::start_background_tasks(&service).await?;
@@ -131,34 +131,6 @@ impl WallpaperServiceBuilder {
             shared_cycle: Property::new(self.shared_cycle),
             engine_active: Property::new(self.engine_active),
         })
-    }
-
-    async fn register_dbus(
-        connection: &Connection,
-        service: Arc<WallpaperService>,
-    ) -> Result<(), Error> {
-        let daemon = WallpaperDaemon { service };
-
-        connection
-            .object_server()
-            .at(SERVICE_PATH, daemon)
-            .await
-            .map_err(|error| {
-                Error::ServiceInitializationFailed(format!(
-                    "cannot register D-Bus object at '{SERVICE_PATH}': {error}"
-                ))
-            })?;
-
-        connection
-            .request_name(SERVICE_NAME)
-            .await
-            .map_err(|error| {
-                Error::ServiceInitializationFailed(format!(
-                    "cannot acquire D-Bus name '{SERVICE_NAME}': {error}"
-                ))
-            })?;
-
-        Ok(())
     }
 
     async fn start_background_tasks(service: &Arc<WallpaperService>) -> Result<(), Error> {
