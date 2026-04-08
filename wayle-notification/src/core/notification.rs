@@ -125,11 +125,19 @@ impl Notification {
 
     /// Invoke an action on the notification.
     ///
+    /// The notification is dismissed if it is not a resident.
+    ///
     /// # Errors
     /// Returns error if the D-Bus signal emission fails.
     #[instrument(skip(self), fields(notification_id = %self.id, action = %action_key), err)]
     pub async fn invoke(&self, action_key: &str) -> Result<(), Error> {
-        NotificationControls::invoke(&self.zbus_connection, &self.id, action_key).await
+        NotificationControls::invoke(&self.zbus_connection, &self.id, action_key).await?;
+        if !self.is_resident.get() {
+            let _ = self
+                .notif_tx
+                .send(NotificationEvent::Remove(self.id, ClosedReason::Closed));
+        }
+        Ok(())
     }
 
     #[allow(clippy::too_many_lines)]
