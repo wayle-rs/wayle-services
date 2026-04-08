@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3](https://github.com/wayle-rs/wayle-services/compare/wayle-wallpaper-v0.1.2...wayle-wallpaper-v0.1.3) - 2026-04-08
+
+### Added
+
+- added a new colors_extracted signal for wallpaper service ([#10](https://github.com/wayle-rs/wayle-services/pull/10))
+
 ## [0.1.2](https://github.com/wayle-rs/wayle-services/compare/wayle-wallpaper-v0.1.1...wayle-wallpaper-v0.1.2) - 2026-04-03
 
 ### Other
