@@ -1,7 +1,7 @@
 [package]
 name = "wayle-sysinfo"
-description = "CPU, memory, disk, and network metrics"
-version = "0.1.2"
+description = "CPU, memory, disk, network, and GPU metrics"
+version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true
@@ -12,6 +12,7 @@ readme = "README.md"
 derive_more.workspace = true
 futures.workspace = true
 sysinfo.workspace = true
+nvml-wrapper.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
