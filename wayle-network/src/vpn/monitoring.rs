@@ -157,10 +157,7 @@ async fn handle_active_connections_changed(vpn: &Arc<Vpn>, paths: Vec<OwnedObjec
     current.retain(|existing| paths.contains(&existing.object_path));
 
     for path in paths {
-        if current
-            .iter()
-            .any(|existing| existing.object_path == path)
-        {
+        if current.iter().any(|existing| existing.object_path == path) {
             continue;
         }
 

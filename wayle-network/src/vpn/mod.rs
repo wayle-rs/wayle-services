@@ -15,8 +15,7 @@ use zbus::{Connection, zvariant::OwnedObjectPath};
 
 use super::{
     core::{
-        connection::ActiveConnection, settings::Settings,
-        settings_connection::ConnectionSettings,
+        connection::ActiveConnection, settings::Settings, settings_connection::ConnectionSettings,
     },
     error::Error,
     proxy::active_connection::vpn::VPNConnectionProxy,
@@ -96,10 +95,7 @@ impl Vpn {
     /// # Errors
     ///
     /// Returns `NetworkError::OperationFailed` if deactivation fails.
-    pub async fn disconnect(
-        &self,
-        active_connection_path: OwnedObjectPath,
-    ) -> Result<(), Error> {
+    pub async fn disconnect(&self, active_connection_path: OwnedObjectPath) -> Result<(), Error> {
         VpnControls::disconnect(&self.zbus_connection, active_connection_path).await
     }
 
@@ -163,7 +159,11 @@ impl Vpn {
             .await
             .ok()?;
         let banner = proxy.banner().await.ok()?;
-        if banner.is_empty() { None } else { Some(banner) }
+        if banner.is_empty() {
+            None
+        } else {
+            Some(banner)
+        }
     }
 
     fn vpn_profiles_from(settings: &Settings) -> Vec<ConnectionSettings> {
