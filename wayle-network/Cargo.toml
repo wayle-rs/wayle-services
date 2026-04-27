@@ -25,3 +25,7 @@ zbus.workspace = true
 
 [lints]
 workspace = true
+
+[[example]]
+name = "vpn"
+path = "examples/vpn.rs"

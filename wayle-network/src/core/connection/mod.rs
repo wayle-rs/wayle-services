@@ -104,6 +104,12 @@ pub struct ActiveConnection {
     pub controller: Property<OwnedObjectPath>,
 }
 
+impl PartialEq for ActiveConnection {
+    fn eq(&self, other: &Self) -> bool {
+        self.object_path == other.object_path
+    }
+}
+
 impl Reactive for ActiveConnection {
     type Context<'a> = ActiveConnectionParams<'a>;
     type LiveContext<'a> = LiveActiveConnectionParams<'a>;

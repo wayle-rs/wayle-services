@@ -89,6 +89,8 @@ mod proxy;
 mod service;
 /// Network type definitions
 pub mod types;
+/// VPN connection management.
+pub mod vpn;
 /// WiFi device functionality
 pub mod wifi;
 /// Wired device functionality
