@@ -2,8 +2,9 @@ use std::sync::Arc;
 
 use derive_more::Debug;
 use tokio_util::sync::CancellationToken;
+use zbus::{Connection, zvariant::OwnedObjectPath};
 
-use crate::{builder::BatteryServiceBuilder, core::device::Device, error::Error};
+use crate::{builder::BatteryServiceBuilder, core::device::Device, error::Error, proxy::upower::UPowerProxy};
 
 /// Battery service for monitoring power devices via UPower.
 ///
@@ -41,6 +42,22 @@ impl BatteryService {
     pub fn builder() -> BatteryServiceBuilder {
         BatteryServiceBuilder::new()
     }
+
+	/// Enumerates battery devices and returns the result in a Vec.
+	///
+	/// The DisplayDevice gives a general breakdown of the overall power status;
+	/// however, it does not show every available property. If a property that is not
+	/// provided by DisplayDevice is needed, an object path is needed to fetch the property.
+	///
+	/// # Errors
+	///
+	/// Returns `Error::Dbus` if the D-Bus connection fails or the UPower service
+	/// is unavailable.
+	pub async fn enumerate_devices() -> Result<Vec<OwnedObjectPath>, Error> {
+		let connection = Connection::system().await?;
+		let proxy = UPowerProxy::new(&connection).await?;
+		Ok(proxy.enumerate_devices().await?)
+	}
 }
 
 impl Drop for BatteryService {
