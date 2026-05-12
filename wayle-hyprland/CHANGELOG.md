@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0](https://github.com/wayle-rs/wayle-services/compare/wayle-hyprland-v0.1.2...wayle-hyprland-v0.2.0) - 2026-05-12
+
+### Added
+
+- [**breaking**] added eval hyprctl command and removed the keyword command ([#17](https://github.com/wayle-rs/wayle-services/pull/17))
+
 ## [0.1.2](https://github.com/wayle-rs/wayle-services/compare/wayle-hyprland-v0.1.1...wayle-hyprland-v0.1.2) - 2026-04-03
 
 ### Other
