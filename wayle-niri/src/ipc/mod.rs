@@ -5,10 +5,9 @@ mod messenger;
 
 use std::{env, ffi::OsString, path::PathBuf};
 
-use niri_ipc::socket::SOCKET_PATH_ENV;
-
 pub(crate) use events::subscribe_events;
 pub(crate) use messenger::NiriCommandClient;
+use niri_ipc::socket::SOCKET_PATH_ENV;
 
 use crate::error::{Error, Result};
 

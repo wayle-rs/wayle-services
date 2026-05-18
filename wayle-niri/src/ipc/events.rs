@@ -119,4 +119,3 @@ fn broadcast_event_from_line(inbound_event_tx: &broadcast::Sender<Event>, line: 
         }
     }
 }
-
