@@ -126,13 +126,13 @@ impl HyprlandService {
         self.hypr_messenger.dispatch(command).await
     }
 
-    /// Sets a Hyprland configuration keyword at runtime.
+    /// Executes a Hyprland eval command.
     ///
     /// # Errors
-    /// Returns error if the keyword is invalid or IPC communication fails.
+    /// Returns error if the command fails or IPC communication fails.
     #[instrument(skip(self), fields(command = %command), err)]
-    pub async fn keyword(&self, command: &str) -> Result<String> {
-        self.hypr_messenger.keyword(command).await
+    pub async fn eval(&self, command: &str) -> Result<String> {
+        self.hypr_messenger.eval(command).await
     }
 
     /// Reloads Hyprland configuration.
