@@ -93,14 +93,16 @@ impl TryFrom<HashMap<String, OwnedValue>> for Profile {
     type Error = Error;
 
     fn try_from(dict: HashMap<String, OwnedValue>) -> Result<Self, Self::Error> {
-        let driver = dict
-            .get("Driver")
-            .and_then(|v| v.downcast_ref::<String>().ok())
+        let driver = ["Driver", "PlatformDriver", "CpuDriver"]
+            .into_iter()
+            .find_map(|field| {
+                dict.get(field)
+                    .and_then(|value| value.downcast_ref::<String>().ok())
+            })
             .ok_or_else(|| Error::InvalidFieldType {
                 field: "Driver".to_string(),
                 expected: "String".to_string(),
-            })?
-            .clone();
+            })?;
 
         let profile_str = dict
             .get("Profile")
@@ -261,6 +263,43 @@ mod tests {
         let profile = result.unwrap();
         assert_eq!(profile.driver, "platform_profile");
         assert_eq!(profile.profile, PowerProfile::Performance);
+    }
+
+    #[test]
+    fn try_from_platform_driver_returns_profile() {
+        let mut dict = HashMap::new();
+        dict.insert(
+            "PlatformDriver".to_string(),
+            OwnedValue::from(Str::from("tlp")),
+        );
+        dict.insert(
+            "Profile".to_string(),
+            OwnedValue::from(Str::from("balanced")),
+        );
+
+        let result = Profile::try_from(dict);
+
+        assert!(result.is_ok());
+        let profile = result.unwrap();
+        assert_eq!(profile.driver, "tlp");
+        assert_eq!(profile.profile, PowerProfile::Balanced);
+    }
+
+    #[test]
+    fn try_from_cpu_driver_returns_profile() {
+        let mut dict = HashMap::new();
+        dict.insert("CpuDriver".to_string(), OwnedValue::from(Str::from("tlp")));
+        dict.insert(
+            "Profile".to_string(),
+            OwnedValue::from(Str::from("power-saver")),
+        );
+
+        let result = Profile::try_from(dict);
+
+        assert!(result.is_ok());
+        let profile = result.unwrap();
+        assert_eq!(profile.driver, "tlp");
+        assert_eq!(profile.profile, PowerProfile::PowerSaver);
     }
 
     #[test]
