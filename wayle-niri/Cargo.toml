@@ -1,0 +1,25 @@
+[package]
+name = "wayle-niri"
+description = "Reactive niri compositor state and event streaming"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+license.workspace = true
+readme = "README.md"
+
+[dependencies]
+derive_more.workspace = true
+futures.workspace = true
+niri-ipc.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+wayle-core.workspace = true
+wayle-traits.workspace = true
+
+[lints]
+workspace = true
