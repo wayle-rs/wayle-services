@@ -43,7 +43,7 @@ impl BatteryService {
         BatteryServiceBuilder::new()
     }
 
-	/// Enumerates battery devices and returns the result in a Vec.
+	/// Enumerates all powered devices and returns the result.
 	///
 	/// The DisplayDevice gives a general breakdown of the overall power status;
 	/// however, it does not show every available property. If a property that is not
