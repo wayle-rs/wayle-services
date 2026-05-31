@@ -12,8 +12,8 @@ impl HyprMessenger {
     }
 
     #[instrument(skip(self), fields(command = %command), err)]
-    pub(crate) async fn keyword(&self, command: &str) -> Result<String> {
-        self.send(&format!("keyword {command}")).await
+    pub(crate) async fn eval(&self, command: &str) -> Result<String> {
+        self.send(&format!("eval {command}")).await
     }
 
     #[instrument(skip(self), err)]
