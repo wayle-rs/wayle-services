@@ -3293,6 +3293,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "wayle-mango"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "futures",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+ "wayle-core",
+ "wayle-traits",
+]
+
+[[package]]
 name = "wayle-media"
 version = "0.1.2"
 dependencies = [
