@@ -94,3 +94,27 @@ impl PulsePort for libpulse_binding::context::introspect::SourcePortInfo<'_> {
         self.available
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use libpulse_binding::format::{Encoding, Info as PulseFormatInfo};
+
+    use super::*;
+
+    fn format_with_encoding(encoding: Encoding) -> PulseFormatInfo {
+        let mut format_info = PulseFormatInfo::new().expect("format info should allocate");
+        format_info.set_encoding(encoding);
+        format_info
+    }
+
+    #[test]
+    fn convert_formats_supports_hdmi_encoded_formats() {
+        let truehd = format_with_encoding(Encoding::TRUEHD_IEC61937);
+        let dtshd = format_with_encoding(Encoding::DTSHD_IEC61937);
+
+        let formats = convert_formats(&[truehd, dtshd]);
+
+        assert_eq!(formats[0].encoding, "TRUEHD_IEC61937");
+        assert_eq!(formats[1].encoding, "DTSHD_IEC61937");
+    }
+}

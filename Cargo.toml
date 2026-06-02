@@ -39,7 +39,7 @@ gdk-pixbuf = "0.22.0"
 glib = "0.22.0"
 gtk4 = { version = "0.11.2", features = ["v4_12"] }
 libc = "0.2.176"
-libpulse-binding = "2.30.1"
+libpulse-binding = { version = "2.30.1", features = ["pa_v13"] }
 niri-ipc = "=25.11.0"
 notify = "8"
 png = "0.18"
