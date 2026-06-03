@@ -1,7 +1,7 @@
 [package]
-name = "wayle-power-profiles"
-description = "Power profile switching and monitoring"
-version = "0.1.3"
+name = "wayle-mango"
+description = "Reactive MangoWM compositor state and event streaming"
+version = "0.1.1"
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true
@@ -9,10 +9,10 @@ license.workspace = true
 readme = "README.md"
 
 [dependencies]
-async-trait.workspace = true
 derive_more.workspace = true
 futures.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tokio-stream.workspace = true
@@ -20,7 +20,6 @@ tokio-util.workspace = true
 tracing.workspace = true
 wayle-core.workspace = true
 wayle-traits.workspace = true
-zbus.workspace = true
 
 [lints]
 workspace = true
