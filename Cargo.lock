@@ -3172,7 +3172,7 @@ dependencies = [
 
 [[package]]
 name = "wayle-audio"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "async-trait",
  "derive_more",
@@ -3311,7 +3311,7 @@ dependencies = [
 
 [[package]]
 name = "wayle-media"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -3369,7 +3369,7 @@ dependencies = [
 
 [[package]]
 name = "wayle-notification"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "async-trait",
  "chrono",
@@ -3392,7 +3392,7 @@ dependencies = [
 
 [[package]]
 name = "wayle-power-profiles"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "async-trait",
  "derive_more",
@@ -3424,7 +3424,7 @@ dependencies = [
 
 [[package]]
 name = "wayle-systray"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -3451,7 +3451,7 @@ version = "0.1.2"
 
 [[package]]
 name = "wayle-wallpaper"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "derive_more",
  "futures",

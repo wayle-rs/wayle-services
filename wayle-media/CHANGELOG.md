@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3](https://github.com/wayle-rs/wayle-services/compare/wayle-media-v0.1.2...wayle-media-v0.1.3) - 2026-06-03
+
+### Fixed
+
+- broken dbus.md links in docs (pointing to old repo) ([#28](https://github.com/wayle-rs/wayle-services/pull/28))
+
 ## [0.1.2](https://github.com/wayle-rs/wayle-services/compare/wayle-media-v0.1.1...wayle-media-v0.1.2) - 2026-04-03
 
 ### Other
