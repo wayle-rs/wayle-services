@@ -74,7 +74,7 @@
 //! - **Path:** `/com/wayle/SystemTray`
 //! - **Interface:** `com.wayle.SystemTray1`
 //!
-//! See [`dbus.md`](https://github.com/wayle-rs/wayle/blob/master/crates/wayle-systray/dbus.md) for the full interface specification.
+//! See [`dbus.md`](https://github.com/wayle-rs/wayle-services/blob/master/wayle-systray/dbus.md) for the full interface specification.
 //!
 //! # Service Fields
 //!
