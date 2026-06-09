@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3](https://github.com/wayle-rs/wayle-services/compare/wayle-power-profiles-v0.1.2...wayle-power-profiles-v0.1.3) - 2026-05-31
+
+### Fixed
+
+- query PlatformDriver and CpuDriver in addtion to just Driver ([#21](https://github.com/wayle-rs/wayle-services/pull/21))
+
 ## [0.1.2](https://github.com/wayle-rs/wayle-services/compare/wayle-power-profiles-v0.1.1...wayle-power-profiles-v0.1.2) - 2026-04-03
 
 ### Other
