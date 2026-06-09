@@ -105,7 +105,7 @@ impl Adapter {
             return;
         }
 
-        let action_name = format!("item_{}", &menu_item.id);
+        let action_name = format!("item_{}", menu_item.id);
         let tray_item_clone = tray_item.clone();
         let id = menu_item.id;
 
