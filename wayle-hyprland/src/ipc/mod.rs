@@ -56,7 +56,7 @@ impl HyprMessenger {
             response.pop();
         }
 
-        String::from_utf8(response).map_err(Error::ResponseDecodeError)
+        Ok(String::from_utf8_lossy(&response).to_string())
     }
 }
 
