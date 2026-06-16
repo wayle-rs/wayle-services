@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2](https://github.com/wayle-rs/wayle-services/compare/wayle-hyprland-v0.2.1...wayle-hyprland-v0.2.2) - 2026-06-16
+
+### Fixed
+
+- use lossy utf8 decoding for Hyprland ipc events ([#31](https://github.com/wayle-rs/wayle-services/pull/31))
+
 ## [0.2.1](https://github.com/wayle-rs/wayle-services/compare/wayle-hyprland-v0.2.0...wayle-hyprland-v0.2.1) - 2026-05-18
 
 ### Other
