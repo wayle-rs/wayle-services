@@ -3275,6 +3275,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "wayle-ext-workspace"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "thiserror 2.0.18",
+ "tracing",
+ "wayland-client",
+ "wayland-protocols",
+ "wayle-core",
+]
+
+[[package]]
 name = "wayle-hyprland"
 version = "0.2.2"
 dependencies = [

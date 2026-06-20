@@ -1,0 +1,20 @@
+[package]
+name = "wayle-ext-workspace"
+description = "Reactive bindings to the ext-workspace-v1 Wayland protocol"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+license.workspace = true
+readme = "README.md"
+
+[dependencies]
+derive_more.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+wayland-client.workspace = true
+wayland-protocols.workspace = true
+wayle-core.workspace = true
+
+[lints]
+workspace = true
