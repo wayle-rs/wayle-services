@@ -25,7 +25,7 @@ pub(crate) struct State {
 
 impl State {
     pub(crate) fn publish(&self) {
-        self.workspaces.set(self.local_workspaces.clone());
-        self.groups.set(self.local_groups.clone());
+        self.workspaces.replace(self.local_workspaces.clone());
+        self.groups.replace(self.local_groups.clone());
     }
 }
