@@ -3500,6 +3500,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "wayle-wlr-toplevel"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "thiserror 2.0.18",
+ "tracing",
+ "wayland-client",
+ "wayland-protocols-wlr",
+ "wayle-core",
+]
+
+[[package]]
 name = "web-sys"
 version = "0.3.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
