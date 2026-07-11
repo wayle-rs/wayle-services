@@ -56,9 +56,7 @@ pub enum FullscreenMode {
     /// Maximized.
     Maximized = 1,
     /// Fullscreen.
-    Fullscreen = 2,
-    /// Both maximized and fullscreen.
-    MaximizedFullscreen = 3,
+    Fullscreen = 2
 }
 
 impl From<u8> for FullscreenMode {
@@ -66,7 +64,6 @@ impl From<u8> for FullscreenMode {
         match value {
             1 => Self::Maximized,
             2 => Self::Fullscreen,
-            3 => Self::MaximizedFullscreen,
             _ => Self::None,
         }
     }
@@ -131,12 +128,6 @@ mod tests {
         assert_eq!(mode, FullscreenMode::Fullscreen);
     }
 
-    #[test]
-    fn fullscreen_mode_from_u8_converts_combined() {
-        let mode = FullscreenMode::from(3u8);
-
-        assert_eq!(mode, FullscreenMode::MaximizedFullscreen);
-    }
 
     #[test]
     fn fullscreen_mode_from_u8_defaults_to_none() {
