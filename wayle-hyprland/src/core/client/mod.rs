@@ -43,7 +43,7 @@ pub struct Client {
     /// Client-requested fullscreen state.
     pub fullscreen_client: Property<FullscreenMode>,
     /// Window is rendering over a fullscreen window.
-    pub over_fullscreen: Property<bool>,
+    pub allowed_over_fullscreen: Property<bool>,
     /// Addresses of grouped windows.
     pub grouped: Property<Vec<Address>>,
     /// User-assigned tags.
@@ -88,7 +88,7 @@ impl Client {
             pinned: Property::new(client_data.pinned),
             fullscreen: Property::new(client_data.fullscreen),
             fullscreen_client: Property::new(client_data.fullscreen_client),
-            over_fullscreen: Property::new(client_data.over_fullscreen),
+            allowed_over_fullscreen: Property::new(client_data.allowed_over_fullscreen),
             grouped: Property::new(client_data.grouped),
             tags: Property::new(client_data.tags),
             swallowing: Property::new(client_data.swallowing),
@@ -118,7 +118,7 @@ impl Client {
         self.pinned.set(client_data.pinned);
         self.fullscreen.set(client_data.fullscreen);
         self.fullscreen_client.set(client_data.fullscreen_client);
-        self.over_fullscreen.set(client_data.over_fullscreen);
+        self.allowed_over_fullscreen.set(client_data.allowed_over_fullscreen);
         self.grouped.set(client_data.grouped);
         self.tags.set(client_data.tags);
         self.swallowing.set(client_data.swallowing);
