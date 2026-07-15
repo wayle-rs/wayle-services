@@ -20,4 +20,8 @@ pub enum Error {
     /// Monitoring requires a cancellation token.
     #[error("cannot start monitoring without a cancellation token")]
     MissingCancellationToken,
+
+    /// Failed to read or write a sysfs power supply attribute.
+    #[error("sysfs operation failed: {0}")]
+    Sysfs(#[source] std::io::Error),
 }
