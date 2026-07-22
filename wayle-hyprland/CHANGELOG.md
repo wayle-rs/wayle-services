@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3](https://github.com/wayle-rs/wayle-services/compare/wayle-hyprland-v0.2.2...wayle-hyprland-v0.2.3) - 2026-07-22
+
+### Fixed
+
+- *(hyprland)* accept allowedOverFullscreen client field ([#40](https://github.com/wayle-rs/wayle-services/pull/40))
+
 ## [0.2.2](https://github.com/wayle-rs/wayle-services/compare/wayle-hyprland-v0.2.1...wayle-hyprland-v0.2.2) - 2026-06-16
 
 ### Fixed
