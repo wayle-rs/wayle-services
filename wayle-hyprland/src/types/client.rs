@@ -94,6 +94,7 @@ pub(crate) struct ClientData {
     pub pinned: bool,
     pub fullscreen: FullscreenMode,
     pub fullscreen_client: FullscreenMode,
+    #[serde(default, alias = "allowedOverFullscreen")]
     pub over_fullscreen: bool,
     pub grouped: Vec<Address>,
     pub tags: Vec<String>,
