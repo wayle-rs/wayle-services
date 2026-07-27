@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5](https://github.com/wayle-rs/wayle-services/compare/wayle-systray-v0.1.4...wayle-systray-v0.1.5) - 2026-07-27
+
+### Fixed
+
+- *(wayle-battery)* add upower proxy and enumerate_devices() ([#16](https://github.com/wayle-rs/wayle-services/pull/16))
+
 ## [0.1.4](https://github.com/wayle-rs/wayle-services/compare/wayle-systray-v0.1.3...wayle-systray-v0.1.4) - 2026-06-03
 
 ### Fixed
