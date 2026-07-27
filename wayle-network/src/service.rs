@@ -13,9 +13,11 @@ use super::{
     error::Error,
     types::connectivity::ConnectionType,
     wifi::Wifi,
+    wireguard::WireGuard,
     wired::Wired,
 };
 use crate::{
+    wireguard::LiveWireGuardParams,
     core::{
         access_point::AccessPoint,
         config::{
@@ -57,6 +59,8 @@ pub struct NetworkService {
     pub wired: Property<Option<Arc<Wired>>>,
     /// Primary connection type as reported by NetworkManager.
     pub primary: Property<ConnectionType>,
+    /// WireGuard VPN service for managing WireGuard tunnels.
+    pub wireguard: Property<Option<Arc<WireGuard>>>,
 }
 
 impl NetworkService {
@@ -128,6 +132,20 @@ impl NetworkService {
             None
         };
 
+        let wireguard = match WireGuard::get_live(LiveWireGuardParams {
+            connection: &connection,
+            cancellation_token: &cancellation_token,
+            settings: settings.clone(),
+        })
+        .await
+        {
+            Ok(wg) => Some(wg),
+            Err(e) => {
+                warn!(error = %e, "cannot create WireGuard service");
+                None
+            }
+        };
+
         let primary = Property::new(ConnectionType::None);
 
         let service = Self {
@@ -137,6 +155,7 @@ impl NetworkService {
             wifi: Property::new(wifi),
             wired: Property::new(wired),
             primary,
+            wireguard: Property::new(wireguard),
         };
 
         service.start_monitoring().await?;
