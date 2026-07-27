@@ -35,18 +35,27 @@ pub(crate) async fn subscribe(
             })?;
 
     tokio::spawn(async move {
-        let reader = BufReader::new(event_stream);
-        let mut lines = reader.lines();
+        let mut reader = BufReader::new(event_stream);
+        let mut buf = vec![];
 
         loop {
+            buf.clear();
+
             tokio::select! {
                 () = cancel_token.cancelled() => {
                     debug!("Hyprland event subscription cancelled");
                     break;
                 }
-                line_result = lines.next_line() => {
+                line_result = reader.read_until(b'\n', &mut buf) => {
                     match line_result {
-                        Ok(Some(line)) => {
+                        Ok(0) => {
+                            warn!("Hyprland event stream closed");
+                            break;
+                        }
+                        Ok(_) => {
+                            let line = String::from_utf8_lossy(&buf);
+                            let line = line.trim_end_matches(['\n', '\r']);
+
                             let Some((event, data)) = line.split_once(">>") else {
                                 warn!(raw_data = %line, "cannot parse hyprland event: missing '>>' separator");
                                 continue;
@@ -55,10 +64,6 @@ pub(crate) async fn subscribe(
                             if let Err(e) = dispatcher::dispatch(event, data, event_tx.clone()).await {
                                 warn!(error = %e, event, "cannot handle event");
                             }
-                        }
-                        Ok(None) => {
-                            warn!("Hyprland event stream closed");
-                            break;
                         }
                         Err(e) => {
                             warn!(error = %e, "Error reading event stream");
