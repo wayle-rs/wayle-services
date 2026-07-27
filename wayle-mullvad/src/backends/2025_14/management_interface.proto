@@ -1,0 +1,208 @@
+syntax = "proto3";
+
+// Minimal subset of the Mullvad daemon `management_interface.proto`, containing
+// only what the wayle-mullvad public API needs: tunnel state, login state, the
+// relay list, relay selection and the daemon event stream.
+//
+// 2025.14 is the earliest daemon release whose schema is wire-compatible with
+// this subset (2025.14 renumbered `NormalRelaySettings.ownership` to field 5
+// when OpenVPN was removed); the fields below are identical from 2025.14 through
+// the current 2026.x releases, so this snapshot was taken from 2026.2.
+//
+// Every field number is preserved verbatim from the upstream schema so the
+// wire format stays compatible: dropped fields simply decode as unknown fields
+// and are ignored. This makes the subset forward-compatible with any daemon
+// release whose schema only *adds* fields on top of the 2025.14 line.
+//
+// The well-known types (`google.protobuf.Empty` / `BoolValue` / `StringValue`)
+// are replaced by local, wire-identical messages so the schema needs no
+// protobuf include directory.
+package mullvad_daemon.management_interface;
+
+// ------------------------------------------------------------------ wrappers
+
+// Wire-compatible stand-in for `google.protobuf.Empty`.
+message Empty {}
+
+// Wire-compatible stand-in for `google.protobuf.BoolValue`.
+message BoolValue {
+  bool value = 1;
+}
+
+// Wire-compatible stand-in for `google.protobuf.StringValue`.
+message StringValue {
+  string value = 1;
+}
+
+// ------------------------------------------------------------------- service
+
+service ManagementService {
+  // Detect the daemon version (used for backend dispatch).
+  rpc GetCurrentVersion(Empty) returns (StringValue) {}
+
+  // Tunnel state: current status + connected relay.
+  rpc GetTunnelState(Empty) returns (TunnelState) {}
+  rpc ConnectTunnel(Empty) returns (BoolValue) {}
+  // The request string is ignored by the daemon; send an empty value.
+  rpc DisconnectTunnel(StringValue) returns (BoolValue) {}
+
+  // Relay list + relay selection. SetRelaySettings is a full REPLACE of the
+  // relay settings, so connecting reads the current settings first (GetSettings)
+  // and mutates only the location, preserving the user's other constraints.
+  rpc GetRelayLocations(Empty) returns (RelayList) {}
+  rpc GetSettings(Empty) returns (Settings) {}
+  rpc SetRelaySettings(RelaySettings) returns (Empty) {}
+
+  // Login/device state.
+  rpc GetDevice(Empty) returns (DeviceState) {}
+
+  // Push updates for tunnel state / relay list / device state.
+  rpc EventsListen(Empty) returns (stream DaemonEvent) {}
+}
+
+// --------------------------------------------------------------- tunnel state
+
+message TunnelState {
+  message Disconnected {}
+  message Connecting {
+    TunnelStateRelayInfo relay_info = 1;
+  }
+  message Connected {
+    TunnelStateRelayInfo relay_info = 1;
+  }
+  message Disconnecting {}
+  message Error {}
+
+  oneof state {
+    Disconnected disconnected = 1;
+    Connecting connecting = 2;
+    Connected connected = 3;
+    Disconnecting disconnecting = 4;
+    Error error = 5;
+  }
+}
+
+message TunnelStateRelayInfo {
+  GeoIpLocation location = 2;
+}
+
+message GeoIpLocation {
+  string country = 3;
+  optional string city = 4;
+  optional string hostname = 8;
+}
+
+// ----------------------------------------------------------- relay selection
+
+// Only `relay_settings` is read; every other Settings field decodes as an
+// ignored unknown field (this is a received message).
+message Settings {
+  RelaySettings relay_settings = 1;
+}
+
+message RelaySettings {
+  oneof endpoint {
+    // custom = 1 (CustomRelaySettings) is intentionally omitted; a custom
+    // endpoint decodes as `endpoint = None` and connect() falls back to a
+    // fresh normal setting.
+    NormalRelaySettings normal = 2;
+  }
+}
+
+// All fields are present (with upstream field numbers) so a decode from
+// GetSettings can be re-encoded to SetRelaySettings with only `location`
+// changed, preserving provider/ownership/multihop/entry/IP constraints.
+message NormalRelaySettings {
+  LocationConstraint location = 1;
+  repeated string providers = 2;
+  WireguardConstraints wireguard_constraints = 4;
+  Ownership ownership = 5;
+}
+
+message WireguardConstraints {
+  optional IpVersion ip_version = 2;
+  repeated string allowed_ips = 3;
+  bool use_multihop = 4;
+  LocationConstraint entry_location = 5;
+  repeated string entry_providers = 6;
+  Ownership entry_ownership = 7;
+}
+
+enum Ownership {
+  ANY = 0;
+  MULLVAD_OWNED = 1;
+  RENTED = 2;
+}
+
+enum IpVersion {
+  V4 = 0;
+  V6 = 1;
+}
+
+message LocationConstraint {
+  oneof type {
+    GeographicLocationConstraint location = 2;
+  }
+}
+
+message GeographicLocationConstraint {
+  string country = 1;
+  optional string city = 2;
+  optional string hostname = 3;
+}
+
+// ---------------------------------------------------------------- relay list
+
+message RelayList {
+  repeated RelayListCountry countries = 1;
+}
+
+message RelayListCountry {
+  string name = 1;
+  string code = 2;
+  repeated RelayListCity cities = 3;
+}
+
+message RelayListCity {
+  string name = 1;
+  string code = 2;
+  repeated Relay relays = 5;
+}
+
+message Relay {
+  string hostname = 1;
+  bool active = 5;
+  Location location = 10;
+}
+
+message Location {
+  string country = 1;
+  string country_code = 2;
+  string city = 3;
+  string city_code = 4;
+}
+
+// ------------------------------------------------------------- login / device
+
+message DeviceState {
+  enum State {
+    LOGGED_IN = 0;
+    LOGGED_OUT = 1;
+    REVOKED = 2;
+  }
+  State state = 1;
+}
+
+message DeviceEvent {
+  DeviceState new_state = 2;
+}
+
+// ------------------------------------------------------------------- events
+
+message DaemonEvent {
+  oneof event {
+    TunnelState tunnel_state = 1;
+    RelayList relay_list = 3;
+    DeviceEvent device = 5;
+  }
+}
