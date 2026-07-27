@@ -3391,6 +3391,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "wayle-portal"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.18",
+ "tracing",
+ "zbus",
+]
+
+[[package]]
 name = "wayle-power-profiles"
 version = "0.1.4"
 dependencies = [

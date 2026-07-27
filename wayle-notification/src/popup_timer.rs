@@ -8,7 +8,7 @@ use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
 use wayle_core::Property;
 
-use crate::core::notification::Notification;
+use crate::core::{notification::Notification, types::NotificationId};
 
 struct PopupTimer {
     started_at: Instant,
@@ -26,8 +26,14 @@ impl PopupTimer {
 ///
 /// Each popup gets an independent timer that can be paused and resumed.
 /// When a timer expires, the popup is removed from the visible list.
+///
+/// Every operation is keyed by [`NotificationId`] and is a safe no-op when no timer exists for
+/// that id (already fired or cancelled). The event-driven callers rely on this idempotency:
+/// [`Notification::inhibit_popup`]/`release_popup`/`dismiss_popup` are delivered asynchronously,
+/// so e.g. a hover-leave `resume` can race a just-fired timer or a `dismiss_popup` — the loser
+/// simply finds no timer and does nothing, leaving state consistent.
 pub(crate) struct PopupTimerManager {
-    timers: Mutex<HashMap<u32, PopupTimer>>,
+    timers: Mutex<HashMap<NotificationId, PopupTimer>>,
     popups: Property<Vec<Arc<Notification>>>,
 }
 
@@ -42,7 +48,7 @@ impl PopupTimerManager {
     /// Starts a countdown timer for a popup.
     ///
     /// If a timer already exists for this ID, it is cancelled first.
-    pub(crate) fn start(self: &Arc<Self>, id: u32, duration: Duration) {
+    pub(crate) fn start(self: &Arc<Self>, id: NotificationId, duration: Duration) {
         let cancel = CancellationToken::new();
 
         {
@@ -78,7 +84,7 @@ impl PopupTimerManager {
     /// Pauses the countdown for a popup.
     ///
     /// Captures remaining time so [`resume`] continues from where it left off.
-    pub(crate) fn pause(&self, id: u32) {
+    pub(crate) fn pause(&self, id: NotificationId) {
         let Ok(mut timers) = self.timers.lock() else {
             return;
         };
@@ -95,7 +101,7 @@ impl PopupTimerManager {
     ///
     /// Uses the remaining duration captured during [`pause`].
     /// Dismisses immediately if time expired while paused.
-    pub(crate) fn resume(self: &Arc<Self>, id: u32) {
+    pub(crate) fn resume(self: &Arc<Self>, id: NotificationId) {
         let remaining = {
             let Ok(timers) = self.timers.lock() else {
                 return;
@@ -115,7 +121,7 @@ impl PopupTimerManager {
     }
 
     /// Cancels and removes the timer for a popup.
-    pub(crate) fn cancel(&self, id: u32) {
+    pub(crate) fn cancel(&self, id: NotificationId) {
         if let Ok(mut timers) = self.timers.lock()
             && let Some(timer) = timers.remove(&id)
         {
@@ -123,8 +129,8 @@ impl PopupTimerManager {
         }
     }
 
-    fn remove_popup(&self, id: u32) {
-        tracing::debug!(id = id, "popup timer expired");
+    fn remove_popup(&self, id: NotificationId) {
+        tracing::debug!(id = %id, "popup timer expired");
 
         {
             let Ok(mut timers) = self.timers.lock() else {

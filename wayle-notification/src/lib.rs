@@ -6,6 +6,15 @@
 //! applications. Notifications are stored, displayed as popups, and can be dismissed
 //! or have actions invoked.
 //!
+//! # Scope: Wayland only
+//!
+//! This crate targets Wayland compositors/shells; X11 is out of scope. That guides which
+//! wire features are modeled: X11-era artifacts with no valid Wayland semantics (e.g. the
+//! spec's `x`/`y` "point-to-screen-location" hints, which a Wayland client cannot fill
+//! because it has no access to a global screen coordinate) are intentionally not supported.
+//! Everything a Wayland shell can actually display is exposed as a typed facet rather than an
+//! untyped hint bag.
+//!
 //! # Reactive Properties
 //!
 //! Service state is exposed through [`Property`](wayle_core::Property) fields:
@@ -71,30 +80,31 @@
 //!
 //! See [`dbus.md`](https://github.com/wayle-rs/wayle-services/blob/master/wayle-notification/dbus.md) for the full interface specification.
 
+/// Notification ingest backends: the three protocol adapters (freedesktop, GTK, portal) plus the
+/// helpers they share (wire-format parsing, `.desktop` metadata, blocklist glob matching).
+pub(crate) mod backends;
 mod builder;
 /// Notification data structures and operations.
 pub mod core;
-pub(crate) mod daemon;
 /// Error types.
 pub mod error;
 pub(crate) mod events;
-mod glob;
 pub(crate) mod image_cache;
 pub(crate) mod monitoring;
 pub(crate) mod persistence;
 pub(crate) mod popup_timer;
+/// D-Bus client proxies (the wayle-native extension + the freedesktop interface).
 pub(crate) mod proxy;
 /// Service implementation.
 pub mod service;
 /// freedesktop notification types (Urgency, ClosedReason, Capabilities, etc.).
 pub mod types;
 pub(crate) mod wayle_daemon;
-mod wayle_proxy;
 
 pub use builder::NotificationServiceBuilder;
 pub use error::Error;
+pub use proxy::wayle::WayleNotificationsProxy;
 pub use service::NotificationService;
-pub use wayle_proxy::WayleNotificationsProxy;
 
 #[doc = include_str!("../README.md")]
 #[cfg(doctest)]

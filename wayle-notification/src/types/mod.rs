@@ -10,6 +10,8 @@ pub(crate) mod dbus {
     pub const SERVICE_INTERFACE: &str = "org.freedesktop.Notifications";
     pub const WAYLE_SERVICE_NAME: &str = "com.wayle.Notifications1";
     pub const WAYLE_SERVICE_PATH: &str = "/com/wayle/Notifications";
+    pub const GTK_SERVICE_NAME: &str = "org.gtk.Notifications";
+    pub const GTK_SERVICE_PATH: &str = "/org/gtk/Notifications";
 }
 
 pub(crate) type Name = String;
@@ -20,7 +22,10 @@ pub(crate) type SpecVersion = String;
 pub(crate) enum Signal {
     NotificationClosed,
     ActionInvoked,
-    #[allow(dead_code)]
+    /// KDE inline-reply result: `NotificationReplied(u id, s text)`.
+    NotificationReplied,
+    /// freedesktop `ActivationToken(u id, s token)` — the focus token, emitted before
+    /// `ActionInvoked` so the app may raise its window (see the freedesktop backend).
     ActivationToken,
 }
 
@@ -29,6 +34,7 @@ impl Signal {
         match self {
             Signal::NotificationClosed => "NotificationClosed",
             Signal::ActionInvoked => "ActionInvoked",
+            Signal::NotificationReplied => "NotificationReplied",
             Signal::ActivationToken => "ActivationToken",
         }
     }

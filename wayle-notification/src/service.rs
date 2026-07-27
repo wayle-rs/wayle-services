@@ -8,8 +8,13 @@ use wayle_core::Property;
 use zbus::Connection;
 
 use crate::{
-    builder::NotificationServiceBuilder, core::notification::Notification, error::Error,
-    events::NotificationEvent, persistence::NotificationStore, popup_timer::PopupTimerManager,
+    backends::portal::PortalNotificationsDaemon,
+    builder::NotificationServiceBuilder,
+    core::{notification::Notification, types::PORTAL_OBJECT_PATH},
+    error::Error,
+    events::NotificationEvent,
+    persistence::NotificationStore,
+    popup_timer::PopupTimerManager,
     types::ClosedReason,
 };
 
@@ -56,23 +61,73 @@ impl NotificationService {
         NotificationServiceBuilder::new()
     }
 
+    /// The `org.freedesktop.impl.portal.*` interface(s) this service serves, for building
+    /// the shell's `.portal` manifest (see `wayle-portal`'s `PortalManifest`).
+    pub const PORTAL_INTERFACES: &'static [&'static str] =
+        &["org.freedesktop.impl.portal.Notification"];
+
+    /// Serves `org.freedesktop.impl.portal.Notification` on `connection` at
+    /// `/org/freedesktop/portal/desktop`, letting xdg-desktop-portal forward sandboxed
+    /// apps' notifications into this service.
+    ///
+    /// `connection` is the shared portal-backend connection (the one that owns
+    /// `org.freedesktop.impl.portal.desktop.<shell>`); register the interface *before* that
+    /// connection requests its well-known name. Unlike the freedesktop and GTK backends —
+    /// which own their own bus names and are always on — the portal backend is enabled
+    /// purely by calling this, since it is a guest on a name the shell owns.
+    ///
+    /// # Errors
+    /// Returns an error if the interface cannot be registered on `connection`.
+    #[instrument(skip(self, connection), err)]
+    pub async fn attach_portal(&self, connection: &Connection) -> Result<(), Error> {
+        // The portal backend re-seeds its own (app_id, portal_id) → identity map from the
+        // restored notifications, so a re-send replaces in place and RemoveNotification can
+        // still find them across a restart.
+        let daemon = PortalNotificationsDaemon::new(
+            connection.clone(),
+            self.notif_tx.clone(),
+            self.blocklist.clone(),
+            &self.notifications.get(),
+        );
+
+        connection
+            .object_server()
+            .at(PORTAL_OBJECT_PATH, daemon)
+            .await
+            .map_err(|err| {
+                Error::ServiceInitializationFailed(format!(
+                    "cannot register portal notification backend: {err}"
+                ))
+            })?;
+
+        Ok(())
+    }
+
+    /// Dismisses several notifications at once as a single atomic batch — one store
+    /// delete and one reactive list update for the whole set, rather than per id. Takes the
+    /// notifications themselves (the caller holds `Arc`s; the service reads their ids), so no
+    /// caller needs the raw id. Empty input is a no-op.
+    pub fn dismiss_many(&self, notifications: &[Arc<Notification>]) {
+        if notifications.is_empty() {
+            return;
+        }
+
+        let ids = notifications.iter().map(|notif| notif.id).collect();
+        if let Err(error) = self.notif_tx.send(NotificationEvent::RemoveMany(
+            ids,
+            ClosedReason::DismissedByUser,
+        )) {
+            warn!(error = %error, "cannot dismiss notifications");
+        }
+    }
+
     /// Dismisses all notifications and emits `NotificationClosed` for each.
     ///
     /// # Errors
     /// Returns error if the event channel is closed.
     #[instrument(skip(self), err)]
     pub async fn dismiss_all(&self) -> Result<(), Error> {
-        let notifications = self.notifications.get();
-
-        for notif in notifications.iter() {
-            if let Err(error) = self.notif_tx.send(NotificationEvent::Remove(
-                notif.id,
-                ClosedReason::DismissedByUser,
-            )) {
-                warn!(error = %error, id = notif.id, "cannot dismiss notification");
-            }
-        }
-
+        self.dismiss_many(&self.notifications.get());
         Ok(())
     }
 
@@ -92,27 +147,6 @@ impl NotificationService {
     /// Replaces the blocklist patterns.
     pub fn set_blocklist(&self, patterns: Vec<String>) {
         self.blocklist.set(patterns)
-    }
-
-    /// Removes a popup from the visible list without affecting notification history.
-    ///
-    /// Cancels any running popup timer for this ID.
-    pub fn dismiss_popup(&self, id: u32) {
-        self.popup_timers.cancel(id);
-
-        let mut list = self.popups.get();
-        list.retain(|popup| popup.id != id);
-        self.popups.set(list);
-    }
-
-    /// Pauses the popup countdown timer.
-    pub fn inhibit_popup(&self, id: u32) {
-        self.popup_timers.pause(id);
-    }
-
-    /// Resumes the popup countdown timer after a pause.
-    pub fn release_popup(&self, id: u32) {
-        self.popup_timers.resume(id);
     }
 }
 
