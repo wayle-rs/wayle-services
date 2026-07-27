@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use derive_more::Debug;
 use tokio_util::sync::CancellationToken;
-+use zbus::{Connection, zvariant::OwnedObjectPath};
+use zbus::{Connection, zvariant::OwnedObjectPath};
 
 use crate::{
     builder::BatteryServiceBuilder, core::device::Device, error::Error, proxy::upower::UPowerProxy,
