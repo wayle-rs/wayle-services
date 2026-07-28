@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+// The bootstrap schema is deliberately version-independent: it contains only
+// `GetCurrentVersion`, whose signature (empty request, string reply) has been
+// stable across every Mullvad daemon release. It is used to detect the running
+// daemon version so the correct versioned backend can be selected, before any
+// version-specific schema is spoken.
+//
+// The package and service names must match the daemon exactly, because gRPC
+// routes by the fully-qualified method path
+// (`/mullvad_daemon.management_interface.ManagementService/GetCurrentVersion`).
+package mullvad_daemon.management_interface;
+
+// Wire-compatible stand-in for `google.protobuf.Empty` (an empty message),
+// defined locally so the schema needs no protobuf include directory.
+message Empty {}
+
+// Wire-compatible stand-in for `google.protobuf.StringValue`.
+message StringValue {
+  string value = 1;
+}
+
+service ManagementService {
+  // Returns the running daemon's version string, e.g. "2026.2".
+  rpc GetCurrentVersion(Empty) returns (StringValue) {}
+}
