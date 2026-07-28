@@ -6,40 +6,94 @@
 
 use serde::{Deserialize, Serialize};
 
-/// High-level VPN connection state.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-pub enum ConnectionState {
-    /// Not connected; no tunnel is up.
-    #[default]
-    Disconnected,
-    /// A tunnel is being established.
-    Connecting,
-    /// A tunnel is up and traffic is protected.
-    Connected,
-    /// The tunnel is being torn down.
-    Disconnecting,
-    /// The daemon is in a blocked or error state.
-    Error,
-}
-
-/// The relay the daemon is currently connected (or connecting) to.
+/// A relay location for display — either the connected relay or the selected
+/// one.
+///
+/// Carries human-readable names (already resolved from the daemon's internal
+/// codes) plus the ISO country code for flag lookup, so consumers render it
+/// directly without knowing anything about the daemon's wire representation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ConnectedNetwork {
-    /// Relay hostname, e.g. `"se-got-wg-001"`, when known.
-    pub hostname: Option<String>,
+pub struct RelayLocation {
+    /// ISO country code, e.g. `"se"` — for flag lookup.
+    pub country_code: String,
     /// Human-readable country, e.g. `"Sweden"`.
     pub country: String,
     /// Human-readable city, e.g. `"Gothenburg"`, when known.
     pub city: Option<String>,
+    /// Relay hostname, e.g. `"se-got-wg-001"`, when a specific relay is pinned.
+    pub hostname: Option<String>,
 }
 
-/// Combined tunnel status: the connection state plus the active relay, if any.
+/// The overall VPN status to display: the tunnel state plus the active relay,
+/// with the account/login state overlaid on top.
+///
+/// State and relay are folded into one value so illegal combinations (connected
+/// with no relay, disconnected with a stale one) are unrepresentable. The
+/// account login state is also folded in and takes **precedence**: while logged
+/// out or revoked the tunnel cannot be up, so those variants override any (stale)
+/// tunnel state. The *selected* relay is deliberately NOT part of this — it is
+/// orthogonal, set by the client and persisting across states — and lives in its
+/// own [`Mullvad::selected`](crate::Mullvad) property.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
-pub struct TunnelStatus {
-    /// Current connection state.
-    pub state: ConnectionState,
-    /// The relay in use, when connecting or connected.
-    pub network: Option<ConnectedNetwork>,
+pub enum ConnectionStatus {
+    /// Not logged in to a Mullvad account (precedes any tunnel state).
+    LoggedOut,
+    /// The account's device was revoked; the user must re-authenticate
+    /// (precedes any tunnel state).
+    Revoked,
+    /// Logged in; no tunnel is up.
+    #[default]
+    Disconnected,
+    /// Establishing a tunnel; carries the target relay once the daemon reports it.
+    Connecting(Option<RelayLocation>),
+    /// A tunnel is up to this relay (the daemon always reports one here).
+    Connected(RelayLocation),
+    /// The tunnel is being torn down.
+    Disconnecting,
+    /// The daemon is in a blocked/error state, with the cause.
+    Error(ErrorCause),
+}
+
+impl ConnectionStatus {
+    /// The active relay, when the daemon has reported one for the current state
+    /// (connecting or connected).
+    #[must_use]
+    pub fn relay(&self) -> Option<&RelayLocation> {
+        match self {
+            Self::Connecting(relay) => relay.as_ref(),
+            Self::Connected(relay) => Some(relay),
+            Self::LoggedOut
+            | Self::Revoked
+            | Self::Disconnected
+            | Self::Disconnecting
+            | Self::Error(_) => None,
+        }
+    }
+}
+
+/// Why the tunnel is in a blocked/error state — the display-relevant subset of
+/// the daemon's error causes. Unmapped/future causes fold into [`Other`](Self::Other).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum ErrorCause {
+    /// Account authentication failed (invalid/expired account, or device limit).
+    AuthFailed,
+    /// The device is offline (no network connectivity).
+    Offline,
+    /// Any other blocking/error cause (firewall, DNS, tunnel setup, …).
+    #[default]
+    Other,
+}
+
+/// Account login state, folded into [`ConnectionStatus`] (`LoggedOut`/`Revoked`).
+/// Used at the backend boundary; not a public property.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LoginState {
+    /// An account is logged in.
+    LoggedIn,
+    /// No account is logged in.
+    LoggedOut,
+    /// The device was revoked server-side.
+    Revoked,
 }
 
 /// A country in the available-network tree.
@@ -77,64 +131,88 @@ pub struct MullvadNetwork {
     pub active: bool,
 }
 
-/// Selects what to connect to: a whole country, a city, or a specific network.
+/// Selects what to connect to: a whole country, a city, or a specific relay.
 ///
-/// Build one with [`NetworkTarget::country`], [`NetworkTarget::city`] or
-/// [`NetworkTarget::network`], or from a [`MullvadNetwork`] via [`From`].
+/// A hierarchy of *codes* (not display names — those live in [`RelayLocation`]),
+/// modelled as an enum so invalid combinations (e.g. a relay with no city) are
+/// unrepresentable. Build with [`NetworkTarget::country`] /
+/// [`NetworkTarget::city`] / [`NetworkTarget::relay`], or from a
+/// [`MullvadNetwork`] via [`From`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct NetworkTarget {
-    /// Country code, e.g. `"se"` (always required).
-    pub country: String,
-    /// City code, e.g. `"got"`, to narrow the selection to a city.
-    pub city: Option<String>,
-    /// Relay hostname, e.g. `"se-got-wg-001"`, to pin an exact network.
-    pub hostname: Option<String>,
+pub enum NetworkTarget {
+    /// A whole country.
+    Country {
+        /// Country code, e.g. `"se"`.
+        code: String,
+    },
+    /// A city within a country.
+    City {
+        /// Country code, e.g. `"se"`.
+        country: String,
+        /// City code, e.g. `"got"`.
+        code: String,
+    },
+    /// A specific relay within a city and country.
+    Relay {
+        /// Country code, e.g. `"se"`.
+        country: String,
+        /// City code, e.g. `"got"`.
+        city: String,
+        /// Relay hostname, e.g. `"se-got-wg-001"`.
+        hostname: String,
+    },
 }
 
 impl NetworkTarget {
     /// Targets an entire country by its code (e.g. `"se"`).
     #[must_use]
-    pub fn country(country: impl Into<String>) -> Self {
-        Self {
-            country: country.into(),
-            city: None,
-            hostname: None,
-        }
+    pub fn country(code: impl Into<String>) -> Self {
+        Self::Country { code: code.into() }
     }
 
     /// Targets a city by its country and city codes (e.g. `"se"`, `"got"`).
     #[must_use]
-    pub fn city(country: impl Into<String>, city: impl Into<String>) -> Self {
-        Self {
+    pub fn city(country: impl Into<String>, code: impl Into<String>) -> Self {
+        Self::City {
             country: country.into(),
-            city: Some(city.into()),
-            hostname: None,
+            code: code.into(),
         }
     }
 
-    /// Targets a specific network by country code, city code and hostname.
+    /// Targets a specific relay by country code, city code and hostname.
     #[must_use]
-    pub fn network(
+    pub fn relay(
         country: impl Into<String>,
         city: impl Into<String>,
         hostname: impl Into<String>,
     ) -> Self {
-        Self {
+        Self::Relay {
             country: country.into(),
-            city: Some(city.into()),
-            hostname: Some(hostname.into()),
+            city: city.into(),
+            hostname: hostname.into(),
         }
     }
 }
 
 impl From<&MullvadNetwork> for NetworkTarget {
     fn from(network: &MullvadNetwork) -> Self {
-        Self {
+        Self::Relay {
             country: network.country_code.clone(),
-            city: Some(network.city_code.clone()),
-            hostname: Some(network.hostname.clone()),
+            city: network.city_code.clone(),
+            hostname: network.hostname.clone(),
         }
     }
+}
+
+/// Derives the ISO country code from a Mullvad relay hostname
+/// (e.g. `"se-got-wg-001"` → `"se"`), if it has the conventional 2-letter
+/// country prefix.
+pub(crate) fn country_code_from_hostname(hostname: &str) -> Option<String> {
+    hostname
+        .split('-')
+        .next()
+        .filter(|code| code.len() == 2 && code.chars().all(|c| c.is_ascii_alphabetic()))
+        .map(str::to_ascii_lowercase)
 }
 
 #[cfg(test)]
@@ -142,37 +220,49 @@ mod tests {
     use super::{MullvadNetwork, NetworkTarget};
 
     #[test]
-    fn country_target_has_no_city_or_hostname() {
-        let target = NetworkTarget::country("se");
-        assert_eq!(target.country, "se");
-        assert_eq!(target.city, None);
-        assert_eq!(target.hostname, None);
+    fn country_target_is_country_variant() {
+        assert_eq!(
+            NetworkTarget::country("se"),
+            NetworkTarget::Country {
+                code: "se".to_owned()
+            }
+        );
     }
 
     #[test]
-    fn city_target_narrows_to_city() {
-        let target = NetworkTarget::city("se", "got");
-        assert_eq!(target.country, "se");
-        assert_eq!(target.city.as_deref(), Some("got"));
-        assert_eq!(target.hostname, None);
+    fn city_target_is_city_variant() {
+        assert_eq!(
+            NetworkTarget::city("se", "got"),
+            NetworkTarget::City {
+                country: "se".to_owned(),
+                code: "got".to_owned(),
+            }
+        );
     }
 
     #[test]
-    fn network_target_pins_hostname() {
-        let target = NetworkTarget::network("se", "got", "se-got-wg-001");
-        assert_eq!(target.city.as_deref(), Some("got"));
-        assert_eq!(target.hostname.as_deref(), Some("se-got-wg-001"));
+    fn relay_target_is_relay_variant() {
+        assert_eq!(
+            NetworkTarget::relay("se", "got", "se-got-wg-001"),
+            NetworkTarget::Relay {
+                country: "se".to_owned(),
+                city: "got".to_owned(),
+                hostname: "se-got-wg-001".to_owned(),
+            }
+        );
     }
 
     #[test]
-    fn target_from_network_uses_all_codes() {
+    fn target_from_network_is_relay() {
         let network = MullvadNetwork {
             hostname: "se-got-wg-001".to_owned(),
             country_code: "se".to_owned(),
             city_code: "got".to_owned(),
             active: true,
         };
-        let target = NetworkTarget::from(&network);
-        assert_eq!(target, NetworkTarget::network("se", "got", "se-got-wg-001"));
+        assert_eq!(
+            NetworkTarget::from(&network),
+            NetworkTarget::relay("se", "got", "se-got-wg-001")
+        );
     }
 }

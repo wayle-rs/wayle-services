@@ -96,15 +96,20 @@ async fn resync(weak: &Weak<Mullvad>, backend: &Arc<dyn MullvadBackend>) {
         return;
     };
 
-    if let Ok(status) = backend.tunnel_status().await {
-        model.connection_state.set(status.state);
-        model.connected_network.set(status.network);
-    }
-    if let Ok(logged_in) = backend.logged_in().await {
-        model.logged_in.set(logged_in);
-    }
+    // Fetch the tree first so the tunnel-relay code fix and the selected-name
+    // resolution below run against fresh networks.
     if let Ok(networks) = backend.networks().await {
         model.networks.set(networks);
+        model.resync_selected_names();
+    }
+    if let Ok(tunnel) = backend.connection_status().await {
+        model.set_tunnel_status(tunnel);
+    }
+    if let Ok(login) = backend.login_state().await {
+        model.set_login(login);
+    }
+    if let Ok(selected) = backend.selected().await {
+        model.set_selected(selected);
     }
 }
 
@@ -141,11 +146,13 @@ async fn wait_or_cancel(token: &CancellationToken) -> bool {
 /// Applies a single backend event to the model's reactive properties.
 fn apply_event(model: &Mullvad, event: BackendEvent) {
     match event {
-        BackendEvent::Tunnel(status) => {
-            model.connection_state.set(status.state);
-            model.connected_network.set(status.network);
+        BackendEvent::Tunnel(tunnel) => model.set_tunnel_status(tunnel),
+        BackendEvent::Login(login) => model.set_login(login),
+        BackendEvent::Networks(networks) => {
+            model.networks.set(networks);
+            // `selected`'s names are resolved against the tree; refresh them.
+            model.resync_selected_names();
         }
-        BackendEvent::LoggedIn(logged_in) => model.logged_in.set(logged_in),
-        BackendEvent::Networks(networks) => model.networks.set(networks),
+        BackendEvent::Selected(target) => model.set_selected(target),
     }
 }

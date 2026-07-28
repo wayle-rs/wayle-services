@@ -22,12 +22,13 @@
 //! # async fn example() -> Result<(), wayle_mullvad::Error> {
 //! let service = MullvadService::new().await?;
 //!
-//! // Read a snapshot of reactive state.
-//! let _logged_in: bool = service.mullvad.logged_in.get();
+//! // Read a snapshot of reactive state (status folds in the login state).
+//! let _status = service.mullvad.status.get();
 //!
-//! // Connect to a whole country (by code), then disconnect. These are
+//! // Select a relay (by country code) and connect, then disconnect. These are
 //! // non-blocking — observe the result via the reactive state.
-//! service.mullvad.connect(&NetworkTarget::country("se"));
+//! service.mullvad.select(&NetworkTarget::country("se"));
+//! service.mullvad.connect();
 //! service.mullvad.disconnect();
 //! # Ok(())
 //! # }
@@ -44,8 +45,8 @@ pub use backend::{BackendEvent, BackendKind, DaemonVersion, MullvadBackend};
 pub use error::Error;
 pub use service::MullvadService;
 pub use types::{
-    ConnectedNetwork, ConnectionState, MullvadNetwork, NetworkCity, NetworkCountry, NetworkTarget,
-    TunnelStatus,
+    ConnectionStatus, ErrorCause, MullvadNetwork, NetworkCity, NetworkCountry, NetworkTarget,
+    RelayLocation,
 };
 
 pub use crate::core::Mullvad;

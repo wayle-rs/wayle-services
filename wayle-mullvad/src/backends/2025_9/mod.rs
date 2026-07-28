@@ -12,7 +12,7 @@ use tonic::transport::Channel;
 use crate::{
     backend::{BackendEvent, MullvadBackend},
     error::Error,
-    types::{NetworkCountry, NetworkTarget, TunnelStatus},
+    types::{ConnectionStatus, LoginState, NetworkCountry, NetworkTarget},
 };
 
 /// Generated client and messages for the 2025.9-line management interface.
@@ -58,16 +58,16 @@ impl Backend {
 
 #[async_trait]
 impl MullvadBackend for Backend {
-    async fn tunnel_status(&self) -> Result<TunnelStatus, Error> {
+    async fn connection_status(&self) -> Result<ConnectionStatus, Error> {
         let mut client = self.client.clone();
         let state = client.get_tunnel_state(proto::Empty {}).await?.into_inner();
-        Ok(convert::tunnel_status(state))
+        Ok(convert::connection_status(state))
     }
 
-    async fn logged_in(&self) -> Result<bool, Error> {
+    async fn login_state(&self) -> Result<LoginState, Error> {
         let mut client = self.client.clone();
         let device = client.get_device(proto::Empty {}).await?.into_inner();
-        Ok(convert::is_logged_in(&device))
+        Ok(convert::login_state(&device))
     }
 
     async fn networks(&self) -> Result<Vec<NetworkCountry>, Error> {
@@ -79,7 +79,13 @@ impl MullvadBackend for Backend {
         Ok(convert::networks(list))
     }
 
-    async fn connect(&self, target: &NetworkTarget) -> Result<(), Error> {
+    async fn selected(&self) -> Result<Option<NetworkTarget>, Error> {
+        let mut client = self.client.clone();
+        let settings = client.get_settings(proto::Empty {}).await?.into_inner();
+        Ok(settings.relay_settings.and_then(convert::selected_target))
+    }
+
+    async fn select(&self, target: &NetworkTarget) -> Result<(), Error> {
         let mut client = self.client.clone();
         // Read-modify-write: preserve the user's existing relay constraints and
         // change only the exit location (SetRelaySettings is a full replace).
@@ -90,11 +96,10 @@ impl MullvadBackend for Backend {
             .relay_settings;
         let settings = convert::relay_settings_with_location(current, target);
         client.set_relay_settings(settings).await?;
-        client.connect_tunnel(proto::Empty {}).await?;
         Ok(())
     }
 
-    async fn reconnect(&self) -> Result<(), Error> {
+    async fn connect(&self) -> Result<(), Error> {
         let mut client = self.client.clone();
         client.connect_tunnel(proto::Empty {}).await?;
         Ok(())

@@ -19,7 +19,7 @@ use tower::service_fn;
 use crate::{
     backends,
     error::Error,
-    types::{NetworkCountry, NetworkTarget, TunnelStatus},
+    types::{ConnectionStatus, LoginState, NetworkCountry, NetworkTarget},
 };
 
 /// Generated bootstrap client. Version-independent: only `GetCurrentVersion`,
@@ -63,17 +63,17 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 /// daemon version, implement this trait and register it in [`REGISTRY`].
 #[async_trait]
 pub trait MullvadBackend: Send + Sync {
-    /// Fetches the current tunnel status (state and connected relay).
+    /// Fetches the current connection status (state + active relay).
     ///
     /// # Errors
     /// Returns an error if the RPC fails.
-    async fn tunnel_status(&self) -> Result<TunnelStatus, Error>;
+    async fn connection_status(&self) -> Result<ConnectionStatus, Error>;
 
-    /// Fetches whether an account is currently logged in.
+    /// Fetches the current account login state.
     ///
     /// # Errors
     /// Returns an error if the RPC fails.
-    async fn logged_in(&self) -> Result<bool, Error>;
+    async fn login_state(&self) -> Result<LoginState, Error>;
 
     /// Fetches the available networks as a country → city → network tree.
     ///
@@ -81,18 +81,26 @@ pub trait MullvadBackend: Send + Sync {
     /// Returns an error if the RPC fails.
     async fn networks(&self) -> Result<Vec<NetworkCountry>, Error>;
 
-    /// Applies `target` as the relay selection and connects the tunnel.
-    ///
-    /// # Errors
-    /// Returns an error if applying the selection or connecting fails.
-    async fn connect(&self, target: &NetworkTarget) -> Result<(), Error>;
-
-    /// Connects the tunnel using the daemon's current relay settings, without
-    /// changing the selected relay. Used to reconnect after a disconnect.
+    /// Fetches the daemon's currently selected relay location (its persisted
+    /// relay settings), or `None` when there is no single geographic selection
+    /// (a custom list, or an unconstrained "any" location).
     ///
     /// # Errors
     /// Returns an error if the RPC fails.
-    async fn reconnect(&self) -> Result<(), Error>;
+    async fn selected(&self) -> Result<Option<NetworkTarget>, Error>;
+
+    /// Selects `target` as the relay location, persisting it to the daemon's
+    /// relay settings without connecting (preserving the other constraints).
+    ///
+    /// # Errors
+    /// Returns an error if applying the selection fails.
+    async fn select(&self, target: &NetworkTarget) -> Result<(), Error>;
+
+    /// Connects the tunnel to the currently selected relay.
+    ///
+    /// # Errors
+    /// Returns an error if the RPC fails.
+    async fn connect(&self) -> Result<(), Error>;
 
     /// Disconnects the tunnel.
     ///
@@ -111,12 +119,14 @@ pub trait MullvadBackend: Send + Sync {
 /// into public types.
 #[derive(Debug, Clone, PartialEq)]
 pub enum BackendEvent {
-    /// The tunnel status changed.
-    Tunnel(TunnelStatus),
-    /// The login state changed.
-    LoggedIn(bool),
+    /// The tunnel connection status changed.
+    Tunnel(ConnectionStatus),
+    /// The account login state changed.
+    Login(LoginState),
     /// The available-network list changed.
     Networks(Vec<NetworkCountry>),
+    /// The persisted relay selection changed (from a settings event).
+    Selected(Option<NetworkTarget>),
 }
 
 // ------------------------------------------------------------ version registry

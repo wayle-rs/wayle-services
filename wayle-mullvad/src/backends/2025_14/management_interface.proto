@@ -71,7 +71,9 @@ message TunnelState {
     TunnelStateRelayInfo relay_info = 1;
   }
   message Disconnecting {}
-  message Error {}
+  message Error {
+    ErrorState error_state = 1;
+  }
 
   oneof state {
     Disconnected disconnected = 1;
@@ -80,6 +82,18 @@ message TunnelState {
     Disconnecting disconnecting = 4;
     Error error = 5;
   }
+}
+
+// Blocked/error detail. Only `cause` is read; the other ErrorState fields
+// (firewall/auth/DNS specifics) decode as ignored unknown fields. `Cause` is a
+// partial enum — values we do not map decode as an unknown i32 and are treated
+// as `Other`.
+message ErrorState {
+  enum Cause {
+    AUTH_FAILED = 0;
+    IS_OFFLINE = 7;
+  }
+  Cause cause = 1;
 }
 
 message TunnelStateRelayInfo {
@@ -141,6 +155,9 @@ enum IpVersion {
 
 message LocationConstraint {
   oneof type {
+    // custom_list is modelled (not read) so a settings round-trip preserves a
+    // multihop entry pinned to a custom list instead of wiping it.
+    string custom_list = 1;
     GeographicLocationConstraint location = 2;
   }
 }
@@ -202,6 +219,9 @@ message DeviceEvent {
 message DaemonEvent {
   oneof event {
     TunnelState tunnel_state = 1;
+    // Emitted when settings change (e.g. after SetRelaySettings), carrying the
+    // new relay selection so `selected` tracks the daemon authoritatively.
+    Settings settings = 2;
     RelayList relay_list = 3;
     DeviceEvent device = 5;
   }

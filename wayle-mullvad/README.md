@@ -12,14 +12,21 @@ async `connect`/`disconnect` methods.
 The [`MullvadService`] owns lifecycle; reactive state and controls live on its
 `mullvad` model:
 
-- `logged_in: Property<bool>` — whether an account is logged in
-- `connection_state: Property<ConnectionState>` — `Disconnected` / `Connecting`
-  / `Connected` / `Disconnecting` / `Error`
-- `connected_network: Property<Option<ConnectedNetwork>>` — the current relay's
-  hostname and location
+- `status: Property<ConnectionStatus>` — the overall VPN status:
+  `LoggedOut` / `Revoked` / `Disconnected` / `Connecting(relay)` /
+  `Connected(relay)` / `Disconnecting` / `Error(cause)`. Folds the tunnel state,
+  the active relay, and the account login state (the latter taking precedence)
+  into one value so illegal combinations can't occur
+- `selected: Property<Option<RelayLocation>>` — the relay the *daemon* has
+  selected, i.e. the one `connect()` would use (display names). Sourced
+  authoritatively from the daemon's persisted relay settings (snapshot + settings
+  events), so it reflects what connect will do even before this client calls
+  `select()`. Orthogonal to `status`; `None` when the daemon has no single
+  geographic selection (custom list / unconstrained)
 - `networks: Property<Vec<NetworkCountry>>` — the available networks as a
   country → city → network tree
-- `connect(&NetworkTarget)` / `disconnect()` — drive the tunnel
+- `select(&NetworkTarget)` — choose the relay location (persisted, no connect)
+- `connect()` / `disconnect()` — drive the tunnel to the selection
 
 ```rust,no_run
 use wayle_mullvad::{MullvadService, NetworkTarget};
@@ -27,13 +34,14 @@ use wayle_mullvad::{MullvadService, NetworkTarget};
 # async fn example() -> Result<(), wayle_mullvad::Error> {
 let service = MullvadService::new().await?;
 
-// Observe reactive state.
-let _logged_in = service.mullvad.logged_in.get();
+// Observe reactive state (status folds in the login state).
+let _status = service.mullvad.status.get();
 
-// Connect to Sweden, then to a specific city, then disconnect. These are
-// non-blocking; the result shows up in the reactive state.
-service.mullvad.connect(&NetworkTarget::country("se"));
-service.mullvad.connect(&NetworkTarget::city("se", "got"));
+// Select Sweden and connect, then reselect a specific city, then disconnect.
+// These are non-blocking; the result shows up in the reactive state.
+service.mullvad.select(&NetworkTarget::country("se"));
+service.mullvad.connect();
+service.mullvad.select(&NetworkTarget::city("se", "got"));
 service.mullvad.disconnect();
 # Ok(())
 # }
