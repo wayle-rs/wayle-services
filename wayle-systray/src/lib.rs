@@ -93,9 +93,9 @@ pub mod dbus;
 mod discovery;
 /// Error types.
 pub mod error;
-mod events;
 mod monitoring;
 mod proxy;
+mod registrar;
 /// Main service implementation.
 pub mod service;
 /// SNI and DBusMenu protocol types.

@@ -1,8 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use derive_more::Debug;
 use futures::{Stream, StreamExt};
-use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 use wayle_core::Property;
@@ -11,7 +10,6 @@ use zbus::Connection;
 use super::{
     core::item::TrayItem,
     error::Error,
-    events::TrayEvent,
     proxy::status_notifier_item::StatusNotifierItemProxy,
     types::{Coordinates, ScrollDelta},
 };
@@ -25,11 +23,12 @@ pub struct SystemTrayService {
     #[debug(skip)]
     pub(crate) cancellation_token: CancellationToken,
     #[debug(skip)]
-    pub(crate) event_tx: broadcast::Sender<TrayEvent>,
-    #[debug(skip)]
-    pub(crate) event_rx: Mutex<Option<broadcast::Receiver<TrayEvent>>>,
-    #[debug(skip)]
     pub(crate) connection: Connection,
+    /// Dedicated connection owning `org.kde.StatusNotifierWatcher` in watcher mode. Held
+    /// only to keep that name and its object server alive for the service's lifetime.
+    #[debug(skip)]
+    #[allow(dead_code)]
+    pub(crate) watcher_connection: Option<Connection>,
 
     /// `true` if acting as the watcher registry, `false` if consuming from existing watcher.
     pub is_watcher: bool,
