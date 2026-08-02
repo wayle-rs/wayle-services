@@ -118,7 +118,8 @@ impl Client {
         self.pinned.set(client_data.pinned);
         self.fullscreen.set(client_data.fullscreen);
         self.fullscreen_client.set(client_data.fullscreen_client);
-        self.allowed_over_fullscreen.set(client_data.allowed_over_fullscreen);
+        self.allowed_over_fullscreen
+            .set(client_data.allowed_over_fullscreen);
         self.grouped.set(client_data.grouped);
         self.tags.set(client_data.tags);
         self.swallowing.set(client_data.swallowing);
