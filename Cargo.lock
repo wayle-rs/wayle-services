@@ -3450,6 +3450,22 @@ name = "wayle-traits"
 version = "0.1.2"
 
 [[package]]
+name = "wayle-triad"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "futures",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+ "wayle-core",
+]
+
+[[package]]
 name = "wayle-wallpaper"
 version = "0.1.4"
 dependencies = [
