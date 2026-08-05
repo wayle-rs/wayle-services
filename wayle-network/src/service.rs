@@ -12,6 +12,7 @@ use super::{
     core::access_point::types::{AccessPointParams, LiveAccessPointParams},
     error::Error,
     types::connectivity::ConnectionType,
+    vpn::Vpn,
     wifi::Wifi,
     wired::Wired,
 };
@@ -38,6 +39,7 @@ use crate::{
     discovery::NetworkServiceDiscovery,
     proxy::manager::NetworkManagerProxy,
     types::states::NMState,
+    vpn::LiveVpnParams,
     wifi::LiveWifiParams,
     wired::LiveWiredParams,
 };
@@ -55,6 +57,8 @@ pub struct NetworkService {
     pub wifi: Property<Option<Arc<Wifi>>>,
     /// Wired device, if present (live-updated on hot-plug).
     pub wired: Property<Option<Arc<Wired>>>,
+    /// VPN connection management.
+    pub vpn: Arc<Vpn>,
     /// Primary connection type as reported by NetworkManager.
     pub primary: Property<ConnectionType>,
 }
@@ -128,6 +132,16 @@ impl NetworkService {
             None
         };
 
+        let vpn = Vpn::get_live(LiveVpnParams {
+            connection: &connection,
+            cancellation_token: &cancellation_token,
+            settings: settings.clone(),
+        })
+        .await
+        .map_err(|err| {
+            Error::ServiceInitializationFailed(format!("cannot initialize VPN service: {err}"))
+        })?;
+
         let primary = Property::new(ConnectionType::None);
 
         let service = Self {
@@ -136,6 +150,7 @@ impl NetworkService {
             settings,
             wifi: Property::new(wifi),
             wired: Property::new(wired),
+            vpn,
             primary,
         };
 
