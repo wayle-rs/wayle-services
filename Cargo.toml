@@ -7,6 +7,7 @@ members = [
     "wayle-brightness",
     "wayle-cava",
     "wayle-core",
+    "wayle-ext-workspace",
     "wayle-hyprland",
     "wayle-mango",
     "wayle-media",
@@ -19,6 +20,7 @@ members = [
     "wayle-traits",
     "wayle-wallpaper",
     "wayle-weather",
+    "wayle-wlr-toplevel",
 ]
 
 [workspace.package]
@@ -57,6 +59,9 @@ tokio-stream = { version = "0.1.17", features = ["sync"] }
 tokio-util = "0.7.16"
 toml = "0.9.7"
 tracing = "0.1.41"
+wayland-client = "0.31"
+wayland-protocols = { version = "0.32", features = ["staging", "client"] }
+wayland-protocols-wlr = { version = "0.3", features = ["client"] }
 wayle-core = { version = "0.1.2", path = "wayle-core" }
 wayle-cava = { version = "0.1.2", path = "wayle-cava", features = ["vendored"] }
 wayle-traits = { version = "0.1.2", path = "wayle-traits" }
