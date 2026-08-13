@@ -20,8 +20,17 @@ const DEFAULT_CACHE_DIR: &str = ".cache";
 
 const HASH_HEX_WIDTH: usize = 16;
 
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(8);
+// Generous on purpose: measured in practice that the *first* HTTPS request
+// made by a freshly-started process can take several seconds (TLS/cert
+// warm-up), well past what a subsequent request on the same client needs.
+// A tight connect timeout here was observed causing premature fallback to
+// a lower thumbnail quality even though the higher-quality URL was valid
+// and would have succeeded given a couple more seconds -- undermining the
+// whole point of trying maxresdefault first. Still bounded (unlike the
+// original reqwest::get(), which had no timeout at all and could hang
+// forever on an unresponsive host).
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
 
 /// Shared client so art downloads reuse connections (keep-alive, TLS
 /// session resumption) instead of paying a fresh handshake on every single
