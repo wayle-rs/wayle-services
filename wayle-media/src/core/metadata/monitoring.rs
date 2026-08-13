@@ -8,7 +8,7 @@ use wayle_traits::ModelMonitoring;
 
 use super::{
     TrackMetadata,
-    art::{ArtResolver, ResolveResult},
+    art::{ArtResolver, ResolveResult, thumbnail_for_page_url},
 };
 use crate::{error::Error, proxy::MediaPlayer2PlayerProxy};
 
@@ -84,9 +84,13 @@ async fn resolve_art_changes(
         return;
     };
     let mut art_url_stream = Box::pin(metadata.art_url.watch());
+    let mut page_url_stream = Box::pin(metadata.url.watch());
     drop(metadata);
 
     let mut pending_download: Option<JoinHandle<()>> = None;
+    let mut art_url: Option<String> = None;
+    let mut page_url: Option<String> = None;
+    let mut last_resolved: Option<String> = None;
 
     loop {
         tokio::select! {
@@ -95,19 +99,36 @@ async fn resolve_art_changes(
                 debug!("art resolver cancelled");
                 return;
             }
-            Some(art_url) = art_url_stream.next() => {
-                abort_pending(&mut pending_download);
-                pending_download = handle_art_url_change(
-                    art_url,
-                    &resolver,
-                    &weak_metadata,
-                );
+            Some(new_art_url) = art_url_stream.next() => {
+                art_url = new_art_url;
+            }
+            Some(new_page_url) = page_url_stream.next() => {
+                page_url = new_page_url;
             }
             else => break,
         }
+
+        let effective = effective_art_source(art_url.as_deref(), page_url.as_deref());
+        if effective == last_resolved {
+            continue;
+        }
+        last_resolved = effective.clone();
+
+        abort_pending(&mut pending_download);
+        pending_download = handle_art_url_change(effective, &resolver, &weak_metadata);
     }
 
     debug!("art resolver ended");
+}
+
+/// The URL to try resolving as artwork: `art_url` when the player provides
+/// one, otherwise a best-effort thumbnail derived from the page/stream URL
+/// (e.g. a YouTube watch page) for players that never publish `mpris:artUrl`.
+fn effective_art_source(art_url: Option<&str>, page_url: Option<&str>) -> Option<String> {
+    if let Some(art_url) = art_url {
+        return Some(art_url.to_string());
+    }
+    thumbnail_for_page_url(page_url?)
 }
 
 fn handle_art_url_change(
@@ -142,7 +163,11 @@ fn handle_art_url_change(
                 let Some(metadata) = weak.upgrade() else {
                     return;
                 };
-                let stale = metadata.art_url.get().as_deref() != Some(download_url.as_str());
+                let current = effective_art_source(
+                    metadata.art_url.get().as_deref(),
+                    metadata.url.get().as_deref(),
+                );
+                let stale = current.as_deref() != Some(download_url.as_str());
                 if !stale {
                     metadata.cover_art.set(Some(local_path));
                 }
