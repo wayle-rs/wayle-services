@@ -11,7 +11,7 @@ use wayle_traits::ModelMonitoring;
 
 use super::{
     TrackMetadata,
-    art::{ArtResolver, ResolveResult, next_fallback, thumbnail_for_page_url},
+    art::{ArtResolver, ResolveResult, next_fallback, quick_preview, thumbnail_for_page_url},
 };
 use crate::{error::Error, proxy::MediaPlayer2PlayerProxy};
 
@@ -156,30 +156,56 @@ fn handle_art_url_change(
             let weak = weak_metadata.clone();
             let resolver = resolver.clone();
             Some(tokio::spawn(async move {
-                let Some(local_path) =
-                    download_with_fallback(&resolver, download_url.clone(), dest).await
-                else {
-                    warn!(url = %download_url, "album art download failed (all qualities)");
-                    return;
-                };
-
-                let Some(metadata) = weak.upgrade() else {
-                    return;
-                };
-                let current = effective_art_source(
-                    metadata.art_url.get().as_deref(),
-                    metadata.url.get().as_deref(),
-                );
-                let stale = current.as_deref() != Some(download_url.as_str());
-                if !stale {
-                    metadata.cover_art.set(Some(local_path));
-                }
+                progressive_download(&resolver, download_url, dest, &weak).await;
             }))
         }
         ResolveResult::Unresolvable => {
             set_cover_art(weak_metadata, None);
             None
         }
+    }
+}
+
+/// Downloads artwork for `target_url`/`target_dest`, favoring low latency
+/// over waiting for the best possible quality up front.
+///
+/// `maxresdefault` (YouTube's best-quality thumbnail) reliably takes
+/// several seconds to respond -- measured 5-7s in practice, likely
+/// generated/resized on demand -- while `hqdefault` is reliably
+/// sub-second. So for YouTube-derived URLs, this fetches the fast, always-
+/// available quick preview first (shows *something* almost immediately),
+/// then separately runs the full best-to-worst quality chain and upgrades
+/// `cover_art` if it lands a better result. Non-YouTube URLs have no quick
+/// preview and no fallback chain (`quick_preview`/`next_fallback` both
+/// return `None`), so this is just the one download, same as before.
+async fn progressive_download(
+    resolver: &ArtResolver,
+    target_url: String,
+    target_dest: PathBuf,
+    weak_metadata: &Weak<TrackMetadata>,
+) {
+    if let Some(preview_url) = quick_preview(&target_url)
+        && preview_url != target_url
+        && let Some(path) = fetch(resolver, &preview_url).await
+    {
+        set_cover_art_if_current(weak_metadata, &target_url, path);
+    }
+
+    let Some(local_path) = download_with_fallback(resolver, target_url.clone(), target_dest).await
+    else {
+        warn!(url = %target_url, "album art download failed (all qualities)");
+        return;
+    };
+    set_cover_art_if_current(weak_metadata, &target_url, local_path);
+}
+
+/// Resolves (using the cache if already present) and downloads `url` in
+/// one step.
+async fn fetch(resolver: &ArtResolver, url: &str) -> Option<String> {
+    match resolver.resolve(url) {
+        ResolveResult::Ready(path) => Some(path),
+        ResolveResult::NeedsDownload { url, dest } => ArtResolver::download(&url, &dest).await.ok(),
+        ResolveResult::Unresolvable => None,
     }
 }
 
@@ -203,6 +229,21 @@ async fn download_with_fallback(
                 url = fallback;
             }
         }
+    }
+}
+
+/// Sets `cover_art` to `local_path`, unless the metadata has already moved
+/// on to a different effective art source (track changed mid-download).
+fn set_cover_art_if_current(weak_metadata: &Weak<TrackMetadata>, expected_url: &str, local_path: String) {
+    let Some(metadata) = weak_metadata.upgrade() else {
+        return;
+    };
+    let current = effective_art_source(
+        metadata.art_url.get().as_deref(),
+        metadata.url.get().as_deref(),
+    );
+    if current.as_deref() == Some(expected_url) {
+        metadata.cover_art.set(Some(local_path));
     }
 }
 

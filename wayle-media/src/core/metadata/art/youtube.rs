@@ -31,6 +31,17 @@ pub(crate) fn next_fallback(current_url: &str) -> Option<String> {
     Some(thumbnail_url(&id, next_quality))
 }
 
+/// The fastest-to-fetch (lowest-resolution, but always-available) thumbnail
+/// for the same video as `url`. Measured in practice: `maxresdefault`
+/// commonly takes 5-7s to respond (likely generated/resized on demand),
+/// while `hqdefault` is reliably sub-second. Callers show this immediately
+/// and upgrade to the higher-quality result once it lands, rather than
+/// blocking the whole thumbnail on the slow tier.
+pub(crate) fn quick_preview(url: &str) -> Option<String> {
+    let (id, _) = parse_thumbnail_url(url)?;
+    Some(thumbnail_url(id, QUALITIES[QUALITIES.len() - 1]))
+}
+
 fn thumbnail_url(id: &str, quality: &str) -> String {
     format!("https://img.youtube.com/vi/{id}/{quality}.jpg")
 }
@@ -169,5 +180,21 @@ mod tests {
     #[test]
     fn fallback_chain_none_for_non_youtube_url() {
         assert_eq!(next_fallback("https://example.com/art.jpg"), None);
+    }
+
+    #[test]
+    fn quick_preview_is_lowest_quality_for_same_video() {
+        let maxres = "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg";
+        assert_eq!(
+            quick_preview(maxres),
+            Some(String::from(
+                "https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg"
+            ))
+        );
+    }
+
+    #[test]
+    fn quick_preview_none_for_non_youtube_url() {
+        assert_eq!(quick_preview("https://example.com/art.jpg"), None);
     }
 }
