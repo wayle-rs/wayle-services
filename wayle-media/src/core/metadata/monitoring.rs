@@ -1,4 +1,7 @@
-use std::sync::{Arc, Weak};
+use std::{
+    path::PathBuf,
+    sync::{Arc, Weak},
+};
 
 use futures::StreamExt;
 use tokio::task::JoinHandle;
@@ -8,7 +11,7 @@ use wayle_traits::ModelMonitoring;
 
 use super::{
     TrackMetadata,
-    art::{ArtResolver, ResolveResult, thumbnail_for_page_url},
+    art::{ArtResolver, ResolveResult, next_fallback, thumbnail_for_page_url},
 };
 use crate::{error::Error, proxy::MediaPlayer2PlayerProxy};
 
@@ -151,13 +154,13 @@ fn handle_art_url_change(
             dest,
         } => {
             let weak = weak_metadata.clone();
+            let resolver = resolver.clone();
             Some(tokio::spawn(async move {
-                let local_path = match ArtResolver::download(&download_url, &dest).await {
-                    Ok(path) => path,
-                    Err(err) => {
-                        warn!(error = %err, "album art download failed");
-                        return;
-                    }
+                let Some(local_path) =
+                    download_with_fallback(&resolver, download_url.clone(), dest).await
+                else {
+                    warn!(url = %download_url, "album art download failed (all qualities)");
+                    return;
                 };
 
                 let Some(metadata) = weak.upgrade() else {
@@ -176,6 +179,29 @@ fn handle_art_url_change(
         ResolveResult::Unresolvable => {
             set_cover_art(weak_metadata, None);
             None
+        }
+    }
+}
+
+/// Downloads `url`, retrying at progressively lower YouTube thumbnail
+/// qualities (see [`next_fallback`]) if it fails -- `maxresdefault` isn't
+/// generated for every video, but the chain always bottoms out at
+/// `hqdefault`, which is. For non-YouTube URLs `next_fallback` immediately
+/// returns `None`, so this is a single attempt, same as before.
+async fn download_with_fallback(
+    resolver: &ArtResolver,
+    mut url: String,
+    mut dest: PathBuf,
+) -> Option<String> {
+    loop {
+        match ArtResolver::download(&url, &dest).await {
+            Ok(path) => return Some(path),
+            Err(err) => {
+                let fallback = next_fallback(&url)?;
+                debug!(error = %err, failed_url = %url, next_url = %fallback, "art candidate failed, trying next quality");
+                dest = resolver.cache_path(&fallback);
+                url = fallback;
+            }
         }
     }
 }
