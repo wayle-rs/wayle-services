@@ -1,6 +1,8 @@
 use std::{
     hash::{Hash, Hasher},
     path::PathBuf,
+    sync::OnceLock,
+    time::Duration,
 };
 
 use fnv::FnvHasher;
@@ -17,6 +19,35 @@ const FALLBACK_CACHE_BASE: &str = "/tmp";
 const DEFAULT_CACHE_DIR: &str = ".cache";
 
 const HASH_HEX_WIDTH: usize = 16;
+
+// Generous on purpose: measured in practice that the *first* HTTPS request
+// made by a freshly-started process can take several seconds (TLS/cert
+// warm-up), well past what a subsequent request on the same client needs.
+// A tight connect timeout here was observed causing premature fallback to
+// a lower thumbnail quality even though the higher-quality URL was valid
+// and would have succeeded given a couple more seconds -- undermining the
+// whole point of trying maxresdefault first. Still bounded (unlike the
+// original reqwest::get(), which had no timeout at all and could hang
+// forever on an unresponsive host).
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
+
+/// Shared client so art downloads reuse connections (keep-alive, TLS
+/// session resumption) instead of paying a fresh handshake on every single
+/// download -- `reqwest::get` builds a brand-new client, with no timeout,
+/// on every call. Also bounds worst-case latency: an unresponsive host
+/// would otherwise hang the download (and any fallback-quality retry)
+/// indefinitely.
+fn http_client() -> &'static reqwest::Client {
+    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+    CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .connect_timeout(CONNECT_TIMEOUT)
+            .timeout(REQUEST_TIMEOUT)
+            .build()
+            .unwrap_or_default()
+    })
+}
 
 /// Resolves album art URLs to local file paths, downloading and caching HTTP URLs.
 #[derive(Debug, Clone)]
@@ -64,7 +95,9 @@ impl ArtResolver {
     }
 
     pub async fn download(url: &str, dest: &PathBuf) -> Result<String, ArtResolverError> {
-        let response = reqwest::get(url)
+        let response = http_client()
+            .get(url)
+            .send()
             .await
             .map_err(ArtResolverError::Download)?;
 
@@ -87,7 +120,7 @@ impl ArtResolver {
         })
     }
 
-    fn cache_path(&self, url: &str) -> PathBuf {
+    pub(crate) fn cache_path(&self, url: &str) -> PathBuf {
         let mut hasher = FnvHasher::default();
         url.hash(&mut hasher);
         let hash = hasher.finish();

@@ -25,6 +25,7 @@ pub(crate) struct TrackProperties {
     pub album_artist: String,
     pub length: Option<Duration>,
     pub art_url: Option<String>,
+    pub url: Option<String>,
     pub track_id: Option<String>,
 }
 
@@ -48,6 +49,7 @@ impl TrackProperties {
                 .and_then(Self::as_string_array)
                 .unwrap_or_default(),
             art_url: metadata.get("mpris:artUrl").and_then(Self::as_string),
+            url: metadata.get("xesam:url").and_then(Self::as_string),
             length: metadata.get("mpris:length").and_then(Self::duration),
             track_id: metadata.get("mpris:trackid").and_then(Self::as_string),
         }
@@ -121,8 +123,27 @@ mod tests {
         assert_eq!(props.album, "");
         assert_eq!(props.album_artist, "");
         assert_eq!(props.art_url, None);
+        assert_eq!(props.url, None);
         assert_eq!(props.length, None);
         assert_eq!(props.track_id, None);
+    }
+
+    #[test]
+    fn track_properties_from_mpris_extracts_url() {
+        let mut metadata = HashMap::new();
+        metadata.insert(
+            String::from("xesam:url"),
+            Value::new("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+                .try_to_owned()
+                .unwrap(),
+        );
+
+        let props = TrackProperties::from_mpris(metadata);
+
+        assert_eq!(
+            props.url,
+            Some(String::from("https://www.youtube.com/watch?v=dQw4w9WgXcQ"))
+        );
     }
 
     #[test]

@@ -43,6 +43,10 @@ pub struct TrackMetadata {
     pub length: Property<Option<Duration>>,
     /// Album art URL (file:// or http://).
     pub art_url: Property<Option<String>>,
+    /// Source page/stream URL (`xesam:url`), e.g. a YouTube watch page.
+    ///
+    /// Used as a fallback to derive artwork when `art_url` is absent.
+    pub url: Property<Option<String>>,
     /// Local file path for album art.
     /// Requires [`with_art_cache()`](crate::MediaServiceBuilder::with_art_cache).
     pub cover_art: Property<Option<String>>,
@@ -96,6 +100,7 @@ impl TrackMetadata {
             album_artist: Property::new(String::from(UNKNOWN_METADATA)),
             length: Property::new(None),
             art_url: Property::new(None),
+            url: Property::new(None),
             cover_art: Property::new(None),
             track_id: Property::new(None),
         }
@@ -113,6 +118,7 @@ impl TrackMetadata {
         metadata.album_artist.set(props.album_artist);
         metadata.length.set(props.length);
         metadata.art_url.set(props.art_url);
+        metadata.url.set(props.url);
         metadata.track_id.set(props.track_id);
     }
 
@@ -128,6 +134,7 @@ impl TrackMetadata {
             album_artist,
             length,
             art_url,
+            url,
             cover_art,
             track_id
         )
