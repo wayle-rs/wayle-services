@@ -234,7 +234,11 @@ async fn download_with_fallback(
 
 /// Sets `cover_art` to `local_path`, unless the metadata has already moved
 /// on to a different effective art source (track changed mid-download).
-fn set_cover_art_if_current(weak_metadata: &Weak<TrackMetadata>, expected_url: &str, local_path: String) {
+fn set_cover_art_if_current(
+    weak_metadata: &Weak<TrackMetadata>,
+    expected_url: &str,
+    local_path: String,
+) {
     let Some(metadata) = weak_metadata.upgrade() else {
         return;
     };

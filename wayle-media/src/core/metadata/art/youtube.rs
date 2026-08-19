@@ -28,7 +28,7 @@ pub(crate) fn next_fallback(current_url: &str) -> Option<String> {
     let (id, quality) = parse_thumbnail_url(current_url)?;
     let idx = QUALITIES.iter().position(|q| *q == quality)?;
     let next_quality = QUALITIES.get(idx + 1)?;
-    Some(thumbnail_url(&id, next_quality))
+    Some(thumbnail_url(id, next_quality))
 }
 
 /// The fastest-to-fetch (lowest-resolution, but always-available) thumbnail
@@ -60,7 +60,9 @@ fn youtube_video_id(page_url: &str) -> Option<String> {
         .or_else(|| page_url.strip_prefix("http://"))?;
     let (host, path_and_query) = rest.split_once('/').unwrap_or((rest, ""));
     let host = host.strip_prefix("www.").unwrap_or(host);
-    let (path, query) = path_and_query.split_once('?').unwrap_or((path_and_query, ""));
+    let (path, query) = path_and_query
+        .split_once('?')
+        .unwrap_or((path_and_query, ""));
 
     match host {
         "youtube.com" | "m.youtube.com" | "youtube-nocookie.com" => match path {
