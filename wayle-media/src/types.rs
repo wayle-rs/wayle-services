@@ -1,4 +1,23 @@
-use std::{fmt, ops::Deref};
+use std::{fmt, ops::Deref, sync::Arc};
+
+use tokio_util::sync::CancellationToken;
+
+use crate::core::player::Player;
+
+/// A player's registration in the service — one per bus-name generation.
+///
+/// The slot is claimed (with `player` still empty) the moment the name appears
+/// on the bus, so the generation can be cancelled even while the initial
+/// snapshot is still in flight; `player` is filled in only once the client has
+/// answered that snapshot.
+pub(crate) struct PlayerSlot {
+    /// Governs every task talking to this client generation: the init
+    /// dispatcher, property/position monitors, and in-flight art fetches.
+    /// Cancelled when the name leaves the bus or its owner is replaced.
+    pub(crate) token: CancellationToken,
+    /// The published player. `None` until the initial snapshot completes.
+    pub(crate) player: Option<Arc<Player>>,
+}
 
 /// MPRIS player identifier (D-Bus bus name).
 ///

@@ -105,6 +105,13 @@ impl MediaServiceBuilder {
     /// for media player changes. If `with_daemon()` was called, the service
     /// will also register on the session bus for external control.
     ///
+    /// Returns as soon as the bus connection and name monitoring are up: only
+    /// the bus daemon is awaited, never an MPRIS client. Players are
+    /// initialized concurrently on background tasks and appear on
+    /// [`MediaService::player_list`](crate::MediaService) as each answers its
+    /// initial property snapshot, so a slow or unresponsive client never
+    /// delays startup or the other players.
+    ///
     /// # Errors
     /// Returns error if D-Bus connection fails or monitoring cannot be started.
     pub async fn build(self) -> Result<Arc<MediaService>, Error> {

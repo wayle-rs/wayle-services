@@ -14,7 +14,7 @@ use super::{
         metadata::art::ArtResolver,
         player::{LivePlayerParams, Player, PlayerParams},
     },
-    types::PlayerId,
+    types::{PlayerId, PlayerSlot},
 };
 use crate::{builder::MediaServiceBuilder, error::Error};
 
@@ -23,8 +23,11 @@ use crate::{builder::MediaServiceBuilder, error::Error};
 pub struct MediaService {
     #[debug(skip)]
     pub(crate) connection: Connection,
+    /// Per-player registrations, keyed by bus name. Each slot is claimed when
+    /// the name appears (before its initial snapshot completes) and carries
+    /// the generation token that all of that client's tasks descend from.
     #[debug(skip)]
-    pub(crate) players: Arc<RwLock<HashMap<PlayerId, Arc<Player>>>>,
+    pub(crate) players: Arc<RwLock<HashMap<PlayerId, PlayerSlot>>>,
     #[debug(skip)]
     pub(crate) cancellation_token: CancellationToken,
     /// All discovered MPRIS players.
@@ -144,11 +147,13 @@ impl MediaService {
 
         let players = self.players.read().await;
 
-        let Some(found_player) = players.get(id) else {
+        // A slot whose init hasn't completed has no published player yet and
+        // is treated as not found.
+        let Some(found_player) = players.get(id).and_then(|slot| slot.player.clone()) else {
             return Err(Error::PlayerNotFound(id.clone()));
         };
 
-        self.active_player.set(Some(found_player.clone()));
+        self.active_player.set(Some(found_player));
 
         Ok(())
     }

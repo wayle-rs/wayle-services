@@ -1,7 +1,7 @@
 use std::{collections::HashMap, time::Duration};
 
 use tokio_util::sync::CancellationToken;
-use zbus::zvariant::OwnedValue;
+use zbus::zvariant::{ObjectPath, OwnedValue};
 
 use crate::{core::metadata::art::ArtResolver, proxy::MediaPlayer2PlayerProxy};
 
@@ -49,8 +49,21 @@ impl TrackProperties {
                 .unwrap_or_default(),
             art_url: metadata.get("mpris:artUrl").and_then(Self::as_string),
             length: metadata.get("mpris:length").and_then(Self::duration),
-            track_id: metadata.get("mpris:trackid").and_then(Self::as_string),
+            track_id: metadata.get("mpris:trackid").and_then(Self::as_track_id),
         }
+    }
+
+    /// `mpris:trackid` is typed `o` (object path) in the MPRIS spec, so most
+    /// players (mpd/mpdris2, Firefox, GNOME apps) send an [`ObjectPath`] —
+    /// which string parsing rejects, leaving `track_id` empty and making
+    /// `SetPosition` fall back to a placeholder path that spec-compliant
+    /// players silently ignore (seek-by-click did nothing). Accept the object
+    /// path, falling back to plain strings for players that send those.
+    fn as_track_id(value: &OwnedValue) -> Option<String> {
+        if let Ok(path) = value.downcast_ref::<ObjectPath>() {
+            return Some(path.to_string());
+        }
+        Self::as_string(value)
     }
 
     fn as_string(value: &OwnedValue) -> Option<String> {
@@ -106,9 +119,36 @@ impl TrackProperties {
 mod tests {
     use std::{collections::HashMap, time::Duration};
 
-    use zbus::zvariant::{Array, Signature, Value};
+    use zbus::zvariant::{Array, ObjectPath, Signature, Value};
 
     use super::TrackProperties;
+
+    #[test]
+    fn track_properties_from_mpris_extracts_trackid_from_object_path() {
+        let mut metadata = HashMap::new();
+        let path = ObjectPath::try_from("/org/musicpd/song/22").unwrap();
+        metadata.insert(
+            String::from("mpris:trackid"),
+            Value::new(path).try_to_owned().unwrap(),
+        );
+
+        let props = TrackProperties::from_mpris(metadata);
+
+        assert_eq!(props.track_id.as_deref(), Some("/org/musicpd/song/22"));
+    }
+
+    #[test]
+    fn track_properties_from_mpris_extracts_trackid_from_string() {
+        let mut metadata = HashMap::new();
+        metadata.insert(
+            String::from("mpris:trackid"),
+            Value::new("/nonspec/string/track").try_to_owned().unwrap(),
+        );
+
+        let props = TrackProperties::from_mpris(metadata);
+
+        assert_eq!(props.track_id.as_deref(), Some("/nonspec/string/track"));
+    }
 
     #[test]
     fn track_properties_from_mpris_with_empty_map_returns_defaults() {
