@@ -1,7 +1,7 @@
 use std::{collections::HashMap, time::Duration};
 
 use tokio_util::sync::CancellationToken;
-use zbus::zvariant::OwnedValue;
+use zbus::zvariant::{ObjectPath, OwnedValue};
 
 use crate::{core::metadata::art::ArtResolver, proxy::MediaPlayer2PlayerProxy};
 
@@ -63,6 +63,9 @@ impl TrackProperties {
         if let Ok(s) = value.downcast_ref::<&str>() {
             return Some(s.to_string());
         }
+        if let Ok(path) = value.downcast_ref::<ObjectPath>() {
+            return Some(path.to_string());
+        }
         None
     }
 
@@ -106,7 +109,7 @@ impl TrackProperties {
 mod tests {
     use std::{collections::HashMap, time::Duration};
 
-    use zbus::zvariant::{Array, Signature, Value};
+    use zbus::zvariant::{Array, ObjectPath, Signature, Value};
 
     use super::TrackProperties;
 
@@ -229,6 +232,19 @@ mod tests {
         let result = TrackProperties::as_string(&value);
 
         assert_eq!(result, Some(String::from("test string")));
+    }
+
+    #[test]
+    fn track_properties_from_mpris_extracts_object_path_track_id() {
+        let track_path = ObjectPath::try_from("/org/mpd/Tracks/299").unwrap();
+        let metadata = HashMap::from([(
+            String::from("mpris:trackid"),
+            Value::ObjectPath(track_path).try_to_owned().unwrap(),
+        )]);
+
+        let props = TrackProperties::from_mpris(metadata);
+
+        assert_eq!(props.track_id, Some(String::from("/org/mpd/Tracks/299")));
     }
 
     #[test]
