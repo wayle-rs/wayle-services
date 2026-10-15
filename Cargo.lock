@@ -3402,6 +3402,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "wayle-output"
+version = "0.1.0"
+dependencies = [
+ "smithay-client-toolkit",
+ "tokio",
+ "tracing",
+ "wayle-core",
+]
+
+[[package]]
 name = "wayle-power-profiles"
 version = "0.1.4"
 dependencies = [
@@ -3469,13 +3479,13 @@ dependencies = [
  "notify",
  "rand",
  "serde",
- "smithay-client-toolkit",
  "thiserror 2.0.18",
  "tokio",
  "tokio-stream",
  "tokio-util",
  "tracing",
  "wayle-core",
+ "wayle-output",
  "wayle-traits",
  "zbus",
 ]

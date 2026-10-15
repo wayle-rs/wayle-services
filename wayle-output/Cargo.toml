@@ -1,0 +1,19 @@
+[package]
+name = "wayle-output"
+description = "Connected Wayland outputs with make, model and serial"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+license.workspace = true
+readme = "README.md"
+
+[dependencies]
+smithay-client-toolkit.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+tracing.workspace = true
+
+wayle-core.workspace = true
+
+[lints]
+workspace = true
