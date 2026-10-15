@@ -23,6 +23,8 @@
 
 #[macro_use]
 mod macros;
+/// Monitor identity and config selectors (`desc:`, `sn:`, connector, `*`).
+pub mod monitor;
 /// XDG Base Directory path resolution.
 pub mod paths;
 mod property;
