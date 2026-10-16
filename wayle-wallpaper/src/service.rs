@@ -1,4 +1,9 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 
 use derive_more::Debug;
 use futures::{
@@ -9,7 +14,8 @@ use tokio::sync::broadcast;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, instrument, warn};
-use wayle_core::Property;
+use wayle_core::{Property, monitor::MonitorSelector};
+use wayle_output::OutputService;
 use zbus::Connection;
 
 use crate::{
@@ -30,6 +36,8 @@ pub struct WallpaperService {
     pub(crate) last_extracted_wallpaper: Property<Option<PathBuf>>,
     #[debug(skip)]
     pub(crate) extraction_complete: broadcast::Sender<()>,
+    #[debug(skip)]
+    pub(crate) outputs: Option<Arc<OutputService>>,
 
     /// Monitor used for color extraction, or first available if `None`.
     pub theming_monitor: Property<Option<String>>,
@@ -69,13 +77,49 @@ impl WallpaperService {
         WallpaperServiceBuilder::new()
     }
 
+    /// Connected outputs with make, model and serial, if Wayland is available.
+    pub fn outputs(&self) -> Option<&Arc<OutputService>> {
+        self.outputs.as_ref()
+    }
+
+    /// Connectors addressed by `target`.
+    ///
+    /// `target` is a connector name, `*`, `desc:<text>` or `sn:<serial>`.
+    /// A connector name is returned as is, even if not connected.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if `target` is not a valid selector.
+    pub fn resolve_monitors(&self, target: &str) -> Result<Vec<String>, Error> {
+        let selector: MonitorSelector = target.parse()?;
+
+        if let MonitorSelector::Connector(name) = selector {
+            return Ok(vec![name]);
+        }
+
+        let Some(outputs) = &self.outputs else {
+            return Ok(Vec::new());
+        };
+
+        Ok(outputs
+            .matching(&selector)
+            .into_iter()
+            .map(|monitor| monitor.connector)
+            .collect())
+    }
+
+    fn first_monitor(&self, target: &str) -> Option<String> {
+        self.resolve_monitors(target).ok()?.into_iter().next()
+    }
+
     /// Returns the wallpaper for a monitor.
     ///
     /// Returns `None` if the monitor isn't registered or has no wallpaper.
     pub fn wallpaper(&self, monitor: &str) -> Option<PathBuf> {
+        let name = self.first_monitor(monitor)?;
         self.monitors
             .get()
-            .get(monitor)
+            .get(&name)
             .and_then(|state| state.wallpaper.clone())
     }
 
@@ -84,40 +128,44 @@ impl WallpaperService {
         self.cycling.get()
     }
 
-    /// Sets a wallpaper on a specific monitor or all monitors.
+    /// Sets a wallpaper on the monitors addressed by `monitor`, or on all.
     ///
-    /// Uses each monitor's own fit mode for scaling.
-    /// If `monitor` is `None`, applies to all known monitors.
+    /// Uses each monitor's own fit mode for scaling. `monitor` is resolved
+    /// with [`Self::resolve_monitors`]; `None` applies to all known monitors.
     ///
     /// # Errors
     ///
-    /// Returns error if the image file does not exist, awww is not installed,
-    /// or the awww daemon is not running.
+    /// Returns error if the image file does not exist, `monitor` is not a
+    /// valid selector, awww is not installed, or the awww daemon is not running.
     #[instrument(skip(self), fields(path = %path.display(), monitor))]
     pub async fn set_wallpaper(&self, path: PathBuf, monitor: Option<&str>) -> Result<(), Error> {
         if !path.exists() {
             return Err(Error::ImageNotFound(path));
         }
 
-        match monitor {
-            Some(name) => {
-                self.store_wallpaper(name, path.clone());
+        let Some(target) = monitor else {
+            self.store_wallpaper_all(path);
+            return self.rerender_all().await;
+        };
 
-                if self.engine_active.get() {
-                    let fit_mode = self
-                        .monitors
-                        .get()
-                        .get(name)
-                        .map(|s| s.fit_mode)
-                        .unwrap_or_default();
-                    let transition = self.transition.get();
-                    AwwwBackend::apply(&path, fit_mode, Some(name), &transition).await?;
-                }
-            }
-            None => {
-                self.store_wallpaper_all(path.clone());
-                self.rerender_all().await?;
-            }
+        let names = self.resolve_monitors(target)?;
+        if names.is_empty() {
+            warn!(monitor = target, "no connected monitor matches");
+        }
+        for name in names {
+            self.set_monitor_wallpaper(&path, &name).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn set_monitor_wallpaper(&self, path: &Path, name: &str) -> Result<(), Error> {
+        self.store_wallpaper(name, path.to_path_buf());
+
+        if self.engine_active.get() {
+            let fit_mode = self.fit_mode(name).unwrap_or_default();
+            let transition = self.transition.get();
+            AwwwBackend::apply(path, fit_mode, Some(name), &transition).await?;
         }
 
         Ok(())
@@ -127,43 +175,51 @@ impl WallpaperService {
     ///
     /// Returns `None` if the monitor isn't registered.
     pub fn fit_mode(&self, monitor: &str) -> Option<FitMode> {
-        self.monitors.get().get(monitor).map(|s| s.fit_mode)
+        let name = self.first_monitor(monitor)?;
+        self.monitors.get().get(&name).map(|s| s.fit_mode)
     }
 
-    /// Sets the fit mode for a monitor and re-applies its wallpaper.
+    /// Sets the fit mode for the monitors addressed by `monitor` and
+    /// re-applies their wallpapers.
     ///
     /// If `monitor` is `None`, sets the fit mode for all monitors.
     ///
     /// # Errors
     ///
-    /// Returns error if awww fails to apply wallpapers.
+    /// Returns error if `monitor` is not a valid selector or awww fails to
+    /// apply wallpapers.
     #[instrument(skip(self), fields(mode = %mode, monitor))]
     pub async fn set_fit_mode(&self, mode: FitMode, monitor: Option<&str>) -> Result<(), Error> {
-        let mut monitors = self.monitors.get();
-
-        match monitor {
-            Some(name) => {
-                let Some(state) = monitors.get_mut(name) else {
-                    return Ok(());
-                };
+        let Some(target) = monitor else {
+            let mut monitors = self.monitors.get();
+            for state in monitors.values_mut() {
                 state.fit_mode = mode;
-                let path = state.wallpaper.clone();
-                self.monitors.set(monitors);
+            }
+            self.monitors.set(monitors);
+            return self.rerender_all().await;
+        };
 
-                if self.engine_active.get()
-                    && let Some(path) = path
-                {
-                    let transition = self.transition.get();
-                    AwwwBackend::apply(&path, mode, Some(name), &transition).await?;
-                }
-            }
-            None => {
-                for state in monitors.values_mut() {
-                    state.fit_mode = mode;
-                }
-                self.monitors.set(monitors);
-                self.rerender_all().await?;
-            }
+        for name in self.resolve_monitors(target)? {
+            self.set_monitor_fit_mode(mode, &name).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn set_monitor_fit_mode(&self, mode: FitMode, name: &str) -> Result<(), Error> {
+        let mut monitors = self.monitors.get();
+        let Some(state) = monitors.get_mut(name) else {
+            return Ok(());
+        };
+        state.fit_mode = mode;
+        let path = state.wallpaper.clone();
+        self.monitors.set(monitors);
+
+        if self.engine_active.get()
+            && let Some(path) = path
+        {
+            let transition = self.transition.get();
+            AwwwBackend::apply(&path, mode, Some(name), &transition).await?;
         }
 
         Ok(())
@@ -281,7 +337,8 @@ impl WallpaperService {
         let path = self
             .theming_monitor
             .get()
-            .and_then(|monitor| monitors.get(&monitor))
+            .and_then(|monitor| self.first_monitor(&monitor))
+            .and_then(|name| monitors.get(&name))
             .or_else(|| monitors.values().next())
             .and_then(|state| state.wallpaper.clone());
 

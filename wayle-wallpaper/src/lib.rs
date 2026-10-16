@@ -108,7 +108,6 @@ pub mod error;
 mod service;
 mod tasks;
 pub mod types;
-mod wayland;
 
 pub use backend::{
     BezierCurve, Position, TransitionAngle, TransitionConfig, TransitionDuration, TransitionFps,

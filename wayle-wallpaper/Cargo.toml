@@ -20,9 +20,9 @@ tokio-stream.workspace = true
 tokio-util.workspace = true
 tracing.workspace = true
 zbus.workspace = true
-smithay-client-toolkit.workspace = true
 
 wayle-core.workspace = true
+wayle-output.workspace = true
 wayle-traits.workspace = true
 
 [lints]

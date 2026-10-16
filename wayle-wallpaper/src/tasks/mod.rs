@@ -6,15 +6,12 @@ use std::sync::Arc;
 
 use cycle_runner::CyclingTask;
 use futures::StreamExt;
-use tokio_util::sync::CancellationToken;
+use tokio::sync::broadcast::error::RecvError;
 use tracing::{error, info, warn};
+use wayle_output::{OutputEvent, OutputService};
 use wayle_traits::ServiceMonitoring;
 
-use crate::{
-    error::Error,
-    service::WallpaperService,
-    wayland::{OutputEvent, OutputWatcher},
-};
+use crate::{error::Error, service::WallpaperService};
 
 impl ServiceMonitoring for WallpaperService {
     type Error = Error;
@@ -27,19 +24,34 @@ impl ServiceMonitoring for WallpaperService {
 }
 
 fn discover_initial_outputs(service: &WallpaperService) {
-    let Some(outputs) = OutputWatcher::query_outputs() else {
+    let Some(outputs) = &service.outputs else {
         warn!("cannot query wayland outputs, no monitors registered");
         return;
     };
 
-    if outputs.is_empty() {
+    sync_monitors(service, outputs);
+}
+
+/// Registers connected outputs and drops monitors that are gone.
+fn sync_monitors(service: &WallpaperService, outputs: &OutputService) {
+    let connected: Vec<String> = outputs
+        .outputs
+        .get()
+        .into_iter()
+        .map(|monitor| monitor.connector)
+        .collect();
+
+    if connected.is_empty() {
         warn!("No Wayland outputs found");
-        return;
     }
 
-    info!(count = outputs.len(), "Discovered Wayland outputs");
-    for output in outputs {
-        service.register_monitor(&output);
+    for name in service.monitor_names() {
+        if !connected.contains(&name) {
+            service.unregister_monitor(&name);
+        }
+    }
+    for name in &connected {
+        service.register_monitor(name);
     }
 }
 
@@ -60,41 +72,34 @@ fn spawn_cycling_task(service: &WallpaperService) {
 }
 
 pub(crate) fn spawn_output_watcher(service: Arc<WallpaperService>) {
-    let Some(mut watcher) = OutputWatcher::start() else {
+    let Some(outputs) = service.outputs.clone() else {
         return;
     };
+
+    let mut events = outputs.events();
+    // catch outputs that changed between discovery and subscribing
+    sync_monitors(&service, &outputs);
 
     let cancellation = service.cancellation_token.clone();
 
     tokio::spawn(async move {
-        run_output_watcher(&mut watcher, &service, cancellation).await;
-    });
-}
-
-async fn run_output_watcher(
-    watcher: &mut OutputWatcher,
-    service: &WallpaperService,
-    cancellation: CancellationToken,
-) {
-    loop {
-        tokio::select! {
-            _ = cancellation.cancelled() => {
-                info!("Output watcher cancelled");
-                return;
-            }
-
-            Some(event) = watcher.events().recv() => {
-                match event {
-                    OutputEvent::Added(name) => {
-                        service.register_monitor(&name);
-                    }
-                    OutputEvent::Removed(name) => {
-                        service.unregister_monitor(&name);
-                    }
+        loop {
+            tokio::select! {
+                _ = cancellation.cancelled() => {
+                    info!("Output watcher cancelled");
+                    return;
                 }
+
+                event = events.recv() => match event {
+                    Ok(OutputEvent::Added(monitor)) => service.register_monitor(&monitor.connector),
+                    Ok(OutputEvent::Removed(connector)) => service.unregister_monitor(&connector),
+                    Ok(OutputEvent::Changed(_)) => {}
+                    Err(RecvError::Lagged(_)) => sync_monitors(&service, &outputs),
+                    Err(RecvError::Closed) => return,
+                },
             }
         }
-    }
+    });
 }
 
 pub(crate) fn spawn_color_extractor(service: Arc<WallpaperService>) {
