@@ -2,7 +2,6 @@ use std::{
     collections::HashMap,
     env, fs,
     sync::{Arc, Mutex},
-    time::Duration,
 };
 
 use chrono::{DateTime, Utc};
@@ -13,7 +12,7 @@ use zbus::zvariant::{OwnedValue, Str};
 
 use crate::{
     core::{
-        notification::Notification,
+        notification::{Notification, expiry_delay},
         types::{Action, IMAGE_DATA_KEYS},
     },
     error::Error,
@@ -230,14 +229,14 @@ impl NotificationStore {
         let notifications: Vec<StoredNotification> = notifications
             .into_iter()
             .filter(|notif| {
-                let Some(timeout) = notif.expire_timeout else {
+                let Some(delay) = expiry_delay(notif.expire_timeout) else {
                     return true;
                 };
                 let Some(timestamp) = DateTime::<Utc>::from_timestamp_millis(notif.timestamp)
                 else {
                     return false;
                 };
-                timestamp + Duration::from_millis(timeout as u64) > now
+                timestamp + delay > now
             })
             .collect();
 

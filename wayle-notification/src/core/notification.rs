@@ -1,4 +1,4 @@
-use std::cmp::PartialEq;
+use std::{cmp::PartialEq, time::Duration};
 
 use chrono::{DateTime, Utc};
 use derive_more::Debug;
@@ -16,6 +16,17 @@ use crate::{
     events::NotificationEvent,
     types::{Category, ClosedReason, Urgency},
 };
+
+/// How long after it was sent a notification expires, from its `expire_timeout`
+/// in milliseconds.
+///
+/// Returns `None` when it never expires: no timeout, or a timeout of 0, which
+/// the notification spec defines as "never expire".
+pub(crate) fn expiry_delay(expire_timeout: Option<u32>) -> Option<Duration> {
+    expire_timeout
+        .filter(|&ttl| ttl > 0)
+        .map(|ttl| Duration::from_millis(u64::from(ttl)))
+}
 
 /// A desktop notification.
 ///
@@ -283,5 +294,25 @@ impl Notification {
             y: Property::new(y),
             action_icons: Property::new(action_icons),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn expiry_delay_is_none_without_timeout() {
+        assert_eq!(expiry_delay(None), None);
+    }
+
+    #[test]
+    fn expiry_delay_is_none_for_zero_timeout() {
+        assert_eq!(expiry_delay(Some(0)), None);
+    }
+
+    #[test]
+    fn expiry_delay_uses_positive_timeout() {
+        assert_eq!(expiry_delay(Some(5000)), Some(Duration::from_secs(5)));
     }
 }
