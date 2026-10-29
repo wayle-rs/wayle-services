@@ -130,7 +130,7 @@ impl NotificationDaemon {
 }
 
 impl NotificationDaemon {
-    /// Only allows an app to reuse `replaces_id` values it owns.
+    /// Keeps `replaces_id` when [`can_reuse_id`] allows it.
     /// Assigns a new ID otherwise.
     fn resolve_id(&self, replaces_id: u32, app_name: &str) -> u32 {
         if replaces_id == 0 {
@@ -139,21 +139,25 @@ impl NotificationDaemon {
             return new_id;
         }
 
-        let owned_by_caller = self
-            .id_owners
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .get(&replaces_id)
-            .is_some_and(|owner| owner == app_name);
+        let reusable = can_reuse_id(
+            replaces_id,
+            self.counter.load(Ordering::Relaxed),
+            self.id_owners
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .get(&replaces_id)
+                .map(String::as_str),
+            app_name,
+        );
 
-        if owned_by_caller {
-            debug!(replaces_id, "reusing replaces_id owned by same app");
+        if reusable {
+            debug!(replaces_id, "reusing replaces_id");
             replaces_id
         } else {
             let new_id = self.counter.fetch_add(1, Ordering::Relaxed);
             debug!(
                 replaces_id,
-                new_id, "replaces_id belongs to different app, assigned new id"
+                new_id, "replaces_id not reusable, assigned new id"
             );
             new_id
         }
@@ -174,6 +178,17 @@ impl NotificationDaemon {
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         owners.remove(&id);
     }
+}
+
+/// Whether a notification from `app_name` may keep its `replaces_id`.
+///
+/// The ID must be one this server handed out (below `next_id`) and must not
+/// belong to another app. An ID with no owner is reusable: apps such as
+/// KNotification close a notification and later resend it with the old ID,
+/// still matching `NotificationClosed`/`ActionInvoked` against that ID. A new
+/// ID would make the app ignore those signals.
+fn can_reuse_id(replaces_id: u32, next_id: u32, owner: Option<&str>, app_name: &str) -> bool {
+    replaces_id < next_id && owner.is_none_or(|owner| owner == app_name)
 }
 
 fn normalize_hints(hints: IncomingHints<'_>) -> NotificationHints {
@@ -204,6 +219,27 @@ mod tests {
     use zbus::zvariant::{LE, Value, serialized::Context, to_bytes};
 
     use super::*;
+
+    #[test]
+    fn can_reuse_id_when_owned_by_same_app() {
+        assert!(can_reuse_id(5, 10, Some("app"), "app"));
+    }
+
+    #[test]
+    fn can_reuse_id_when_closed_and_unowned() {
+        assert!(can_reuse_id(5, 10, None, "app"));
+    }
+
+    #[test]
+    fn cannot_reuse_id_owned_by_other_app() {
+        assert!(!can_reuse_id(5, 10, Some("other"), "app"));
+    }
+
+    #[test]
+    fn cannot_reuse_id_never_handed_out() {
+        assert!(!can_reuse_id(10, 10, None, "app"));
+        assert!(!can_reuse_id(42, 10, None, "app"));
+    }
 
     #[test]
     fn normalize_hints_replaces_image_data_with_cached_path() {
