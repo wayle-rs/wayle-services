@@ -27,7 +27,7 @@ async fn example() -> wayle_hyprland::Result<()> {
 
     // Snapshot: print current workspace names
     for ws in service.workspaces.get().iter() {
-        println!("Workspace {} on {}", ws.name.get(), ws.id.get());
+        println!("Workspace {} on {}", ws.name.get(), ws.address.get());
     }
 
     // Watch: react to workspace layout changes

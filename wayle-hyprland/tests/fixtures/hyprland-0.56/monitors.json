@@ -1,0 +1,141 @@
+[
+  {
+    "id": 0,
+    "name": "DP-1",
+    "description": "Test Monitor",
+    "make": "TestMake",
+    "model": "TestModel",
+    "serial": "TEST0001",
+    "width": 3840,
+    "height": 1600,
+    "physicalWidth": 880,
+    "physicalHeight": 370,
+    "refreshRate": 143.99800,
+    "x": 1440,
+    "y": 350,
+    "activeWorkspace": {
+      "id": 1,
+      "name": "1"
+    },
+    "specialWorkspace": {
+      "id": -98,
+      "name": "special:fixture"
+    },
+    "reserved": [
+      0,
+      38,
+      0,
+      0
+    ],
+    "scale": 1,
+    "transform": 0,
+    "focused": true,
+    "dpmsStatus": true,
+    "vrr": false,
+    "solitary": "0",
+    "solitaryBlockedBy": [
+      "WINDOWED",
+      "SPECIAL",
+      "CANDIDATE"
+    ],
+    "activelyTearing": false,
+    "tearingBlockedBy": [
+      "NOT_TORN",
+      "CANDIDATE",
+      "HW_CURSOR"
+    ],
+    "directScanoutTo": "0",
+    "directScanoutBlockedBy": [
+      "CANDIDATE"
+    ],
+    "disabled": false,
+    "currentFormat": "XRGB8888",
+    "mirrorOf": "none",
+    "availableModes": [
+      "3840x1600@59.99Hz",
+      "3840x1600@144.00Hz",
+      "3840x1600@119.98Hz",
+      "3840x1600@99.97Hz",
+      "3840x1600@84.97Hz",
+      "1024x768@60.00Hz",
+      "800x600@60.32Hz",
+      "640x480@59.94Hz"
+    ],
+    "colorManagementPreset": "srgb",
+    "sdrBrightness": 1,
+    "sdrSaturation": 1,
+    "sdrMinLuminance": 0.2,
+    "sdrMaxLuminance": 80,
+    "hardwareCursorsInUse": true,
+    "hardwareDetails": {}
+  },
+  {
+    "id": 1,
+    "name": "DP-2",
+    "description": "Test Monitor",
+    "make": "TestMake",
+    "model": "TestModel",
+    "serial": "TEST0001",
+    "width": 3840,
+    "height": 1600,
+    "physicalWidth": 880,
+    "physicalHeight": 370,
+    "refreshRate": 143.99800,
+    "x": 1440,
+    "y": 350,
+    "activeWorkspace": {
+      "id": -1338,
+      "name": "fixture"
+    },
+    "specialWorkspace": {
+      "id": 0,
+      "name": ""
+    },
+    "reserved": [
+      0,
+      38,
+      0,
+      0
+    ],
+    "scale": 1,
+    "transform": 0,
+    "focused": true,
+    "dpmsStatus": true,
+    "vrr": false,
+    "solitary": "0",
+    "solitaryBlockedBy": [
+      "WINDOWED",
+      "CANDIDATE"
+    ],
+    "activelyTearing": false,
+    "tearingBlockedBy": [
+      "NOT_TORN",
+      "CANDIDATE",
+      "HW_CURSOR"
+    ],
+    "directScanoutTo": "0",
+    "directScanoutBlockedBy": [
+      "CANDIDATE"
+    ],
+    "disabled": false,
+    "currentFormat": "XRGB8888",
+    "mirrorOf": "none",
+    "availableModes": [
+      "3840x1600@59.99Hz",
+      "3840x1600@144.00Hz",
+      "3840x1600@119.98Hz",
+      "3840x1600@99.97Hz",
+      "3840x1600@84.97Hz",
+      "1024x768@60.00Hz",
+      "800x600@60.32Hz",
+      "640x480@59.94Hz"
+    ],
+    "colorManagementPreset": "srgb",
+    "sdrBrightness": 1,
+    "sdrSaturation": 1,
+    "sdrMinLuminance": 0.2,
+    "sdrMaxLuminance": 80,
+    "hardwareCursorsInUse": true,
+    "hardwareDetails": {}
+  }
+]

@@ -6,6 +6,7 @@ use crate::{
 };
 
 /// A Hyprland monitor (display output) with reactive state.
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct Monitor {
     /// Monitor ID.
@@ -36,8 +37,8 @@ pub struct Monitor {
     pub y: Property<i32>,
     /// Currently active workspace.
     pub active_workspace: Property<WorkspaceInfo>,
-    /// Currently open special workspace.
-    pub special_workspace: Property<WorkspaceInfo>,
+    /// Currently open special workspace, `None` when no special workspace is shown.
+    pub special_workspace: Property<Option<WorkspaceInfo>>,
     /// Reserved screen edges for panels.
     pub reserved: Property<Reserved>,
     /// Output scale factor.

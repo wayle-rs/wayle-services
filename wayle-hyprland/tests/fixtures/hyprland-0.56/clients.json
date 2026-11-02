@@ -1,0 +1,45 @@
+[
+  {
+    "address": "0x55e1b7aceae0",
+    "mapped": true,
+    "hidden": false,
+    "visible": true,
+    "acceptsInput": true,
+    "at": [
+      1448,
+      393
+    ],
+    "size": [
+      1907,
+      1549
+    ],
+    "workspace": {
+      "id": -98,
+      "name": "special:fixture"
+    },
+    "floating": false,
+    "monitor": 0,
+    "class": "test-app",
+    "title": "Test Window",
+    "initialClass": "test-app",
+    "initialTitle": "Test Window",
+    "pid": 1000,
+    "xwayland": true,
+    "pinned": false,
+    "pinFullscreened": false,
+    "fullscreen": 0,
+    "fullscreenClient": 0,
+    "fullscreenHandler": "default",
+    "allowedOverFullscreen": true,
+    "grouped": [],
+    "tags": [],
+    "swallowing": "0x0",
+    "focusHistoryID": 7,
+    "inhibitingIdle": false,
+    "xdgTag": "",
+    "xdgDescription": "",
+    "contentType": "none",
+    "tearingHint": false,
+    "stableId": "180000bd"
+  }
+]

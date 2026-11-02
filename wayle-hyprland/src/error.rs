@@ -5,6 +5,7 @@ use tokio::sync::broadcast;
 use crate::{Address, HyprlandEvent, WorkspaceId};
 
 /// Hyprland service errors
+#[non_exhaustive]
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     /// Cannot initialize Hyprland service

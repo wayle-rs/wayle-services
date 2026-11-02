@@ -1,0 +1,38 @@
+[
+  {
+    "id": 1,
+    "name": "1",
+    "monitor": "DP-1",
+    "monitorID": 0,
+    "windows": 3,
+    "hasfullscreen": false,
+    "lastwindow": "0x0",
+    "lastwindowtitle": "Test Window",
+    "ispersistent": false,
+    "tiledLayout": "dwindle"
+  },
+  {
+    "name": "special:fixture",
+    "monitor": "DP-1",
+    "monitorID": 0,
+    "windows": 0,
+    "hasfullscreen": false,
+    "lastwindow": "0x0",
+    "lastwindowtitle": "Test Window",
+    "ispersistent": false,
+    "tiledLayout": "dwindle",
+    "id": -98
+  },
+  {
+    "name": "fixture",
+    "monitor": "DP-1",
+    "monitorID": 0,
+    "windows": 0,
+    "hasfullscreen": false,
+    "lastwindow": "0x0",
+    "lastwindowtitle": "Test Window",
+    "ispersistent": false,
+    "tiledLayout": "dwindle",
+    "id": -1338
+  }
+]

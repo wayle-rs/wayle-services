@@ -1,0 +1,42 @@
+[
+  {
+    "address": "1",
+    "id": 1,
+    "type": "normal",
+    "name": "1",
+    "monitor": "DP-1",
+    "monitorID": 0,
+    "windows": 3,
+    "hasfullscreen": false,
+    "lastwindow": "0x0",
+    "lastwindowtitle": "Test Window",
+    "ispersistent": false,
+    "tiledLayout": "dwindle"
+  },
+  {
+    "address": "special:fixture",
+    "type": "special",
+    "name": "special:fixture",
+    "monitor": "DP-1",
+    "monitorID": 0,
+    "windows": 0,
+    "hasfullscreen": false,
+    "lastwindow": "0x0",
+    "lastwindowtitle": "Test Window",
+    "ispersistent": false,
+    "tiledLayout": "dwindle"
+  },
+  {
+    "address": "fixture",
+    "type": "normal",
+    "name": "fixture",
+    "monitor": "DP-1",
+    "monitorID": 0,
+    "windows": 0,
+    "hasfullscreen": false,
+    "lastwindow": "0x0",
+    "lastwindowtitle": "Test Window",
+    "ispersistent": false,
+    "tiledLayout": "dwindle"
+  }
+]

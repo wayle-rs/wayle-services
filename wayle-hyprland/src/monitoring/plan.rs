@@ -79,6 +79,13 @@ pub(super) fn for_event(event: &HyprlandEvent) -> SyncPlan {
             workspaces: true,
             ..SyncPlan::default()
         },
+        HyprlandEvent::ChangeWorkspaceId { .. } => SyncPlan {
+            clients: true,
+            monitors: true,
+            workspaces: true,
+            ..SyncPlan::default()
+        },
+
         HyprlandEvent::FocusedMon { .. } | HyprlandEvent::FocusedMonV2 { .. } => SyncPlan {
             monitors: true,
             ..SyncPlan::default()

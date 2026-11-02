@@ -1,6 +1,6 @@
 use tokio::sync::broadcast::Sender;
 
-use crate::{Error, HyprlandEvent, Result};
+use crate::{Error, HyprlandEvent, Result, WorkspaceIdentity};
 
 pub(crate) fn handle_focused_mon(
     event: &str,
@@ -30,26 +30,21 @@ pub(crate) fn handle_focused_mon_v2(
     data: &str,
     hyprland_tx: Sender<HyprlandEvent>,
 ) -> Result<()> {
-    let event_data = format!("{event}>>{data}");
-    let Some((name, workspace_id)) = data.split_once(',') else {
+    let Some((name, workspace_field)) = data.split_once(',') else {
         return Err(Error::EventParseError {
-            event_data,
+            event_data: format!("{event}>>{data}"),
             field: "monitor_data",
-            expected: "comma-separated name,workspace_id",
+            expected: "comma-separated name,workspace_address",
             value: data.to_string(),
         });
     };
-    let workspace_id = workspace_id.parse().map_err(|_| Error::EventParseError {
-        event_data,
-        field: "workspace_id",
-        expected: "integer",
-        value: workspace_id.to_string(),
-    })?;
 
-    let monitor_name = name.to_string();
+    let identity = WorkspaceIdentity::from_event_field(workspace_field, "");
+
     hyprland_tx.send(HyprlandEvent::FocusedMonV2 {
-        name: monitor_name.clone(),
-        workspace_id,
+        name: name.to_string(),
+        workspace_id: identity.as_ref().and_then(|workspace| workspace.id),
+        workspace_address: identity.map(|workspace| workspace.address),
     })?;
 
     Ok(())

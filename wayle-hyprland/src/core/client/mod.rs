@@ -6,6 +6,7 @@ use crate::{
 };
 
 /// A Hyprland client window with reactive state.
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct Client {
     /// Window address (unique identifier).

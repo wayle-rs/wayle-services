@@ -58,7 +58,9 @@ async fn sync_clients_state(runtime: &SyncRuntime) {
             continue;
         }
 
-        reconciled.push(Arc::new(Client::from_props(client_data)));
+        let client = Client::from_props(client_data);
+
+        reconciled.push(Arc::new(client));
     }
     if reconciled != current_clients {
         runtime.clients.set(reconciled);
@@ -75,21 +77,27 @@ async fn sync_workspaces_state(runtime: &SyncRuntime) {
     };
 
     let current_workspaces = runtime.workspaces.get();
-    let mut current_by_id: HashMap<_, _> = current_workspaces
+    let mut current_by_address: HashMap<_, _> = current_workspaces
         .iter()
-        .map(|workspace| (workspace.id.get(), Arc::clone(workspace)))
+        .map(|workspace| (workspace.address.get(), Arc::clone(workspace)))
         .collect();
 
     let mut reconciled = Vec::with_capacity(live_workspaces.len());
     for workspace_data in live_workspaces {
-        let id = workspace_data.id;
-        if let Some(workspace) = current_by_id.remove(&id) {
-            workspace.update(workspace_data);
+        let Some(identity) = workspace_data.identity() else {
+            warn!(name = %workspace_data.name, "skipping workspace with no address or id");
+            continue;
+        };
+
+        if let Some(workspace) = current_by_address.remove(&identity.address) {
+            workspace.update(identity, workspace_data);
             reconciled.push(workspace);
             continue;
         }
 
-        reconciled.push(Arc::new(Workspace::from_props(workspace_data)));
+        let workspace = Workspace::from_props(identity, workspace_data);
+
+        reconciled.push(Arc::new(workspace));
     }
     if reconciled != current_workspaces {
         runtime.workspaces.set(reconciled);
@@ -120,7 +128,9 @@ async fn sync_monitors_state(runtime: &SyncRuntime) {
             continue;
         }
 
-        reconciled.push(Arc::new(Monitor::from_props(monitor_data)));
+        let monitor = Monitor::from_props(monitor_data);
+
+        reconciled.push(Arc::new(monitor));
     }
     if reconciled != current_monitors {
         runtime.monitors.set(reconciled);

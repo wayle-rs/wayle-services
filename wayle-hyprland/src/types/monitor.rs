@@ -2,7 +2,10 @@ use std::{convert::Infallible, str::FromStr};
 
 use serde::{Deserialize, Deserializer};
 
-use crate::{Address, MonitorId, WorkspaceInfo, deserialize_optional_address};
+use crate::{
+    Address, MonitorId, WorkspaceInfo, deserialize_optional_address,
+    deserialize_optional_workspace_info,
+};
 
 /// Reserved screen space on a monitor for panels, bars, etc.
 #[derive(Debug, Deserialize, Clone, PartialEq, PartialOrd)]
@@ -353,7 +356,8 @@ pub(crate) struct MonitorData {
     pub x: i32,
     pub y: i32,
     pub active_workspace: WorkspaceInfo,
-    pub special_workspace: WorkspaceInfo,
+    #[serde(deserialize_with = "deserialize_optional_workspace_info")]
+    pub special_workspace: Option<WorkspaceInfo>,
     #[serde(deserialize_with = "deserialize_reserved")]
     pub reserved: Reserved,
     pub scale: f32,

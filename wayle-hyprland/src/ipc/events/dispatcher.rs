@@ -15,10 +15,10 @@ use super::{
         handle_window_title_v2,
     },
     workspace::{
-        handle_active_special, handle_active_special_v2, handle_create_workspace,
-        handle_create_workspace_v2, handle_destroy_workspace, handle_destroy_workspace_v2,
-        handle_move_workspace, handle_move_workspace_v2, handle_rename_workspace, handle_workspace,
-        handle_workspace_v2,
+        handle_active_special, handle_active_special_v2, handle_change_workspace_id,
+        handle_create_workspace, handle_create_workspace_v2, handle_destroy_workspace,
+        handle_destroy_workspace_v2, handle_move_workspace, handle_move_workspace_v2,
+        handle_rename_workspace, handle_workspace, handle_workspace_v2,
     },
 };
 use crate::{Address, Error, Result, ScreencastOwner};
@@ -47,6 +47,7 @@ pub(crate) async fn dispatch(
         "moveworkspace" => handle_move_workspace(event, data, event_tx),
         "moveworkspacev2" => handle_move_workspace_v2(event, data, event_tx),
         "renameworkspace" => handle_rename_workspace(event, data, event_tx),
+        "changeworkspaceid" => handle_change_workspace_id(event, data, event_tx),
         "activespecial" => handle_active_special(event, data, event_tx),
         "activespecialv2" => handle_active_special_v2(event, data, event_tx),
         "activelayout" => handle_active_layout(event, data, event_tx),

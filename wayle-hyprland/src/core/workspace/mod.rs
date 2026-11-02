@@ -1,12 +1,22 @@
 use wayle_core::Property;
 
-use crate::{Address, MonitorId, WorkspaceData, WorkspaceId};
+use crate::{
+    Address, MonitorId, WorkspaceAddress, WorkspaceData, WorkspaceId, WorkspaceIdentity,
+    WorkspaceKind,
+};
 
 /// A Hyprland workspace with reactive state.
+///
+/// Two workspaces are equal when their addresses match.
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct Workspace {
-    /// Workspace ID (negative for special workspaces).
-    pub id: Property<WorkspaceId>,
+    /// Workspace number, present only for numbered workspaces.
+    pub id: Property<Option<WorkspaceId>>,
+    /// Workspace address.
+    pub address: Property<WorkspaceAddress>,
+    /// Regular or special workspace.
+    pub kind: Property<WorkspaceKind>,
     /// Workspace name.
     pub name: Property<String>,
     /// Monitor name this workspace is on.
@@ -29,14 +39,16 @@ pub struct Workspace {
 
 impl PartialEq for Workspace {
     fn eq(&self, other: &Self) -> bool {
-        self.id.get() == other.id.get()
+        self.address.get() == other.address.get()
     }
 }
 
 impl Workspace {
-    pub(crate) fn from_props(workspace_data: WorkspaceData) -> Self {
+    pub(crate) fn from_props(identity: WorkspaceIdentity, workspace_data: WorkspaceData) -> Self {
         Self {
-            id: Property::new(workspace_data.id),
+            id: Property::new(identity.id),
+            address: Property::new(identity.address),
+            kind: Property::new(identity.kind),
             name: Property::new(workspace_data.name),
             monitor: Property::new(workspace_data.monitor),
             monitor_id: Property::new(workspace_data.monitor_id),
@@ -49,8 +61,10 @@ impl Workspace {
         }
     }
 
-    pub(crate) fn update(&self, workspace_data: WorkspaceData) {
-        self.id.set(workspace_data.id);
+    pub(crate) fn update(&self, identity: WorkspaceIdentity, workspace_data: WorkspaceData) {
+        self.id.set(identity.id);
+        self.address.set(identity.address);
+        self.kind.set(identity.kind);
         self.name.set(workspace_data.name);
         self.monitor.set(workspace_data.monitor);
         self.monitor_id.set(workspace_data.monitor_id);

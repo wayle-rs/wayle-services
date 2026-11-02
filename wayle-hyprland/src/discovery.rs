@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use tracing::{error, instrument};
+use tracing::{error, instrument, warn};
 
 use crate::{
     core::{client::Client, layer::Layer, monitor::Monitor, workspace::Workspace},
@@ -43,15 +43,26 @@ impl HyprlandDiscovery {
         let layers = all_layers.into_iter().map(Layer::from_props).collect();
 
         for client_data in all_clients {
-            clients.push(Arc::new(Client::from_props(client_data)));
+            let client = Client::from_props(client_data);
+
+            clients.push(Arc::new(client));
         }
 
         for monitor_data in all_monitors {
-            monitors.push(Arc::new(Monitor::from_props(monitor_data)));
+            let monitor = Monitor::from_props(monitor_data);
+
+            monitors.push(Arc::new(monitor));
         }
 
         for workspace_data in all_workspaces {
-            workspaces.push(Arc::new(Workspace::from_props(workspace_data)));
+            let Some(identity) = workspace_data.identity() else {
+                warn!(name = %workspace_data.name, "skipping workspace with no address or id");
+                continue;
+            };
+
+            let workspace = Workspace::from_props(identity, workspace_data);
+
+            workspaces.push(Arc::new(workspace));
         }
 
         Self {
