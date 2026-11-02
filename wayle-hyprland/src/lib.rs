@@ -6,6 +6,9 @@
 //! State is exposed through reactive [`Property`] fields that update automatically
 //! when Hyprland emits relevant events.
 //!
+//! Breaking changes and upgrade steps for each release are in the
+//! [changelog](https://github.com/wayle-rs/wayle-services/blob/master/wayle-hyprland/CHANGELOG.md).
+//!
 //! # Reactive Properties
 //!
 //! All state fields use [`Property<T>`] which supports two access patterns:
