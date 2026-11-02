@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0](https://github.com/wayle-rs/wayle-services/compare/wayle-hyprland-v0.2.3...wayle-hyprland-v0.3.0) - 2026-11-02
+
+### Added
+
+- *(wayle-hyprland)* [**breaking**] support Hyprland 0.57 workspace addresses ([#55](https://github.com/wayle-rs/wayle-services/pull/55))
+
 ## [0.2.3](https://github.com/wayle-rs/wayle-services/compare/wayle-hyprland-v0.2.2...wayle-hyprland-v0.2.3) - 2026-07-22
 
 ### Fixed
