@@ -13,6 +13,7 @@ members = [
     "wayle-network",
     "wayle-niri",
     "wayle-notification",
+    "wayle-output",
     "wayle-power-profiles",
     "wayle-sysinfo",
     "wayle-systray",
@@ -59,6 +60,7 @@ toml = "0.9.7"
 tracing = "0.1.41"
 wayle-core = { version = "0.1.2", path = "wayle-core" }
 wayle-cava = { version = "0.1.2", path = "wayle-cava", features = ["vendored"] }
+wayle-output = { version = "0.1.0", path = "wayle-output" }
 wayle-traits = { version = "0.1.2", path = "wayle-traits" }
 wildcard = "0.3"
 zbus = { version = "5.11.0", default-features = false, features = ["tokio"] }

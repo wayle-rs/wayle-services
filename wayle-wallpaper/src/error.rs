@@ -69,6 +69,10 @@ pub enum Error {
         source: io::Error,
     },
 
+    /// Monitor target is not a valid selector.
+    #[error("invalid monitor: {0}")]
+    InvalidMonitor(#[from] wayle_core::monitor::SelectorError),
+
     /// I/O operation failed.
     #[error("I/O error: {0}")]
     Io(#[from] io::Error),

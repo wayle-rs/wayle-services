@@ -4,6 +4,7 @@ use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
 use wayle_core::Property;
+use wayle_output::OutputService;
 use wayle_traits::ServiceMonitoring;
 use zbus::Connection;
 
@@ -24,6 +25,7 @@ pub struct WallpaperServiceBuilder {
     theming_monitor: Option<String>,
     shared_cycle: bool,
     engine_active: bool,
+    outputs: Option<Arc<OutputService>>,
 }
 
 impl Default for WallpaperServiceBuilder {
@@ -34,6 +36,7 @@ impl Default for WallpaperServiceBuilder {
             theming_monitor: None,
             shared_cycle: false,
             engine_active: true,
+            outputs: None,
         }
     }
 }
@@ -50,9 +53,16 @@ impl WallpaperServiceBuilder {
     ///
     /// Returns error if D-Bus connection fails or service registration fails.
     #[allow(clippy::cognitive_complexity)]
-    pub async fn build(self) -> Result<Arc<WallpaperService>, Error> {
+    pub async fn build(mut self) -> Result<Arc<WallpaperService>, Error> {
         let start = Instant::now();
         self.spawn_daemon_if_enabled();
+
+        if self.outputs.is_none() {
+            self.outputs = tokio::task::spawn_blocking(OutputService::start)
+                .await
+                .ok()
+                .flatten();
+        }
 
         let connection = Self::connect_session_bus().await?;
         debug!(elapsed_ms = start.elapsed().as_millis(), "D-Bus connected");
@@ -96,6 +106,12 @@ impl WallpaperServiceBuilder {
         self
     }
 
+    /// Shares an existing output service instead of starting a new one.
+    pub fn outputs(mut self, outputs: Arc<OutputService>) -> Self {
+        self.outputs = Some(outputs);
+        self
+    }
+
     /// Enables or disables the awww wallpaper engine.
     pub fn engine_active(mut self, active: bool) -> Self {
         self.engine_active = active;
@@ -130,6 +146,7 @@ impl WallpaperServiceBuilder {
             transition: Property::new(self.transition),
             shared_cycle: Property::new(self.shared_cycle),
             engine_active: Property::new(self.engine_active),
+            outputs: self.outputs,
         })
     }
 
