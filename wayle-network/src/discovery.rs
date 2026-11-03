@@ -13,14 +13,31 @@ impl NetworkServiceDiscovery {
     pub async fn wifi_device_path(
         connection: &Connection,
     ) -> Result<Option<OwnedObjectPath>, Error> {
-        Self::find_device_path(connection, NMDeviceType::Wifi, false).await
+        Self::find_device_path(connection, NMDeviceType::Wifi, true).await
     }
 
     pub async fn wired_device_path(
         connection: &Connection,
     ) -> Result<Option<OwnedObjectPath>, Error> {
-        Self::find_device_path(connection, NMDeviceType::Ethernet, false).await
+        Self::find_device_path(connection, NMDeviceType::Ethernet, true).await
     }
+
+    pub async fn has_active_connection(
+        connection: &Connection,
+        device_path: &OwnedObjectPath,
+    ) -> Result<bool, Error> {
+        let device_proxy = DeviceProxy::new(connection, device_path.clone())
+            .await
+            .map_err(Error::DbusError)?;
+
+        let active = device_proxy
+            .active_connection()
+            .await
+            .map_err(Error::DbusError)?;
+
+        Ok(active.as_str() != NULL_PATH)
+    }
+
     async fn find_device_path(
         connection: &Connection,
         target_type: NMDeviceType,

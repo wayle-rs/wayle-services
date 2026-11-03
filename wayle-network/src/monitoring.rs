@@ -87,6 +87,7 @@ async fn spawn_device_monitoring(
 
     let mut device_added = nm_proxy.receive_device_added().await?;
     let mut device_removed = nm_proxy.receive_device_removed().await?;
+    let mut active_connections_changed = nm_proxy.receive_active_connections_changed().await;
 
     tokio::spawn(async move {
         loop {
@@ -100,7 +101,7 @@ async fn spawn_device_monitoring(
                     debug!(path = %args.device_path, "Network device added");
 
                     try_initialize_wifi(&connection, &wifi, &settings, &cancellation_token).await;
-                    try_initialize_wired(&connection, &wired, &cancellation_token).await;
+                    sync_wired(&connection, &wired, &cancellation_token).await;
                 }
                 Some(signal) = device_removed.next() => {
                     let Ok(args) = signal.args() else { continue };
@@ -108,6 +109,10 @@ async fn spawn_device_monitoring(
 
                     handle_wifi_removed(&args.device_path, &wifi);
                     handle_wired_removed(&args.device_path, &wired);
+                    sync_wired(&connection, &wired, &cancellation_token).await;
+                }
+                Some(_) = active_connections_changed.next() => {
+                    sync_wired(&connection, &wired, &cancellation_token).await;
                 }
             }
         }
@@ -152,13 +157,26 @@ async fn try_initialize_wifi(
     }
 }
 
-async fn try_initialize_wired(
+/// Binds `wired` to the ethernet device NetworkManager is actually using.
+///
+/// Keeps the current device while it has an active connection, otherwise
+/// switches to the first ethernet device with one (e.g. a dock or USB
+/// adapter that appeared after startup), falling back to any ethernet device.
+async fn sync_wired(
     connection: &Connection,
     wired: &Property<Option<Arc<Wired>>>,
     cancellation_token: &CancellationToken,
 ) {
-    if wired.get().is_some() {
-        return;
+    let current = wired.get();
+
+    if let Some(current) = &current {
+        let current_path = &current.device.core.object_path;
+        if NetworkServiceDiscovery::has_active_connection(connection, current_path)
+            .await
+            .unwrap_or(false)
+        {
+            return;
+        }
     }
 
     let Some(path) = NetworkServiceDiscovery::wired_device_path(connection)
@@ -168,6 +186,13 @@ async fn try_initialize_wired(
     else {
         return;
     };
+
+    if current
+        .as_ref()
+        .is_some_and(|current| current.device.core.object_path == path)
+    {
+        return;
+    }
 
     match Wired::get_live(LiveWiredParams {
         connection,
@@ -179,6 +204,13 @@ async fn try_initialize_wired(
         Ok(new_wired) => {
             debug!(path = %path, "Wired device initialized");
             wired.set(Some(new_wired));
+
+            if let Some(old_token) = current
+                .as_ref()
+                .and_then(|old| old.device.core.cancellation_token.as_ref())
+            {
+                old_token.cancel();
+            }
         }
         Err(err) => {
             warn!(error = %err, path = %path, "Failed to initialize wired device");
