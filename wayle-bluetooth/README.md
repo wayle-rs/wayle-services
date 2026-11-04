@@ -16,7 +16,7 @@ cargo add wayle-bluetooth
 
 ## Usage
 
-`BluetoothService` exposes adapter state, paired devices, and discovery controls. All fields are reactive `Property<T>` types.
+`BluetoothService` exposes adapter state, devices, and discovery controls. State comes from BlueZ (and the kernel's rfkill switches), published as reactive `Property<T>` types that follow changes made by any client; only what BlueZ doesn't publish (the operation this service is performing on a device, its latest failure, and the pairing request BlueZ asked this service) is the service's own. Actions return nothing; their outcome shows up as state.
 
 ```rust,no_run
 use wayle_bluetooth::BluetoothService;
@@ -25,26 +25,26 @@ use futures::StreamExt;
 async fn example() -> Result<(), wayle_bluetooth::Error> {
     let bt = BluetoothService::new().await?;
 
-    // Snapshot: list currently paired devices
+    // Snapshot: list known devices
     for device in bt.devices.get().iter() {
-        let name = device.alias.get();
-        println!("{name}: connected={}", device.connected.get());
+        let info = device.info.get();
+        println!("{}: connected={}", info.alias, info.connected);
     }
 
-    // Watch: log when any device connects or disconnects
-    let mut stream = bt.devices.watch();
+    // Watch: log the connected devices whenever that changes
+    let mut stream = bt.connected.watch();
     while let Some(devices) = stream.next().await {
         for device in devices.iter() {
-            if device.connected.get() {
-                println!("{} connected", device.alias.get());
-            }
+            println!("{} connected", device.info.get().alias);
         }
     }
     Ok(())
 }
 ```
 
-Devices support `connect()`, `disconnect()`, `pair()`, and `forget()` operations.
+`enable()` and `disable()` turn Bluetooth on and off the way desktops do: through rfkill, whose block holds until lifted and powers the controller down even when its firmware misbehaves, falling back to powering adapters through BlueZ when `/dev/rfkill` can't be written.
+
+Devices support `connect()`, `disconnect()`, `pair()`, and `forget()`. Each runs in the background: its progress is `info.activity`, its outcome shows up as state (`info.connected`, `info.paired`, the device disappearing), and a failure is recorded in `info.last_error`.
 
 ## License
 

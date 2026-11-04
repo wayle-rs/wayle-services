@@ -12,8 +12,6 @@ pub(crate) trait AgentManager1 {
         capability: &str,
     ) -> zbus::Result<()>;
 
-    async fn unregister_agent(&self, agent: &zbus::zvariant::ObjectPath<'_>) -> zbus::Result<()>;
-
     async fn request_default_agent(
         &self,
         agent: &zbus::zvariant::ObjectPath<'_>,

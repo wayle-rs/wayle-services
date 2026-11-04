@@ -1,6 +1,5 @@
 use std::fmt::{Display, Formatter, Result};
 
-use tokio::sync::oneshot::Sender;
 use zbus::zvariant::OwnedObjectPath;
 
 /// Agent capability for pairing operations.
@@ -103,49 +102,19 @@ pub enum PairingRequest {
     },
 }
 
-#[derive(Debug)]
-pub(crate) enum PairingResponder {
-    Pin(Sender<String>),
-    Passkey(Sender<u32>),
-    Confirmation(Sender<bool>),
-    Authorization(Sender<bool>),
-    ServiceAuthorization(Sender<bool>),
-}
-
-#[derive(Debug)]
-pub(crate) enum AgentEvent {
-    PinRequested {
-        device_path: OwnedObjectPath,
-        responder: Sender<String>,
-    },
-    DisplayPinCode {
-        device_path: OwnedObjectPath,
-        pincode: String,
-    },
-    PasskeyRequested {
-        device_path: OwnedObjectPath,
-        responder: Sender<u32>,
-    },
-    DisplayPasskey {
-        device_path: OwnedObjectPath,
-        passkey: u32,
-        entered: u16,
-    },
-    ConfirmationRequested {
-        device_path: OwnedObjectPath,
-        passkey: u32,
-        responder: Sender<bool>,
-    },
-    AuthorizationRequested {
-        device_path: OwnedObjectPath,
-        responder: Sender<bool>,
-    },
-    ServiceAuthorizationRequested {
-        device_path: OwnedObjectPath,
-        uuid: String,
-        responder: Sender<bool>,
-    },
-    Cancelled,
+impl PairingRequest {
+    /// The device the request concerns.
+    pub fn device_path(&self) -> &OwnedObjectPath {
+        match self {
+            Self::RequestPinCode { device_path }
+            | Self::DisplayPinCode { device_path, .. }
+            | Self::RequestPasskey { device_path }
+            | Self::DisplayPasskey { device_path, .. }
+            | Self::RequestConfirmation { device_path, .. }
+            | Self::RequestAuthorization { device_path }
+            | Self::RequestServiceAuthorization { device_path, .. } => device_path,
+        }
+    }
 }
 
 #[cfg(test)]

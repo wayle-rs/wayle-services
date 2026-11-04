@@ -173,8 +173,8 @@ impl<'a> DiscoveryFilterOptions<'a> {
         let mut filter = HashMap::new();
 
         if let Some(uuids) = self.uuids {
-            let uuid_values: Vec<Value> = uuids.into_iter().map(Value::from).collect();
-            filter.insert("UUIDs".to_string(), Value::from(uuid_values));
+            // An array of strings (`as`), as BlueZ requires.
+            filter.insert("UUIDs".to_string(), Value::from(uuids));
         }
 
         if let Some(rssi) = self.rssi {
@@ -209,9 +209,46 @@ impl<'a> DiscoveryFilterOptions<'a> {
     }
 }
 
+/// A request that can be made of an [`Adapter`](crate::core::adapter::Adapter).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AdapterAction {
+    /// [`set_powered`](crate::core::adapter::Adapter::set_powered)
+    SetPowered,
+    /// [`set_alias`](crate::core::adapter::Adapter::set_alias)
+    SetAlias,
+    /// [`set_connectable`](crate::core::adapter::Adapter::set_connectable)
+    SetConnectable,
+    /// [`set_discoverable`](crate::core::adapter::Adapter::set_discoverable)
+    SetDiscoverable,
+    /// [`set_discoverable_timeout`](crate::core::adapter::Adapter::set_discoverable_timeout)
+    SetDiscoverableTimeout,
+    /// [`set_pairable`](crate::core::adapter::Adapter::set_pairable)
+    SetPairable,
+    /// [`set_pairable_timeout`](crate::core::adapter::Adapter::set_pairable_timeout)
+    SetPairableTimeout,
+    /// [`set_discovery_filter`](crate::core::adapter::Adapter::set_discovery_filter)
+    SetDiscoveryFilter,
+    /// [`start_discovery`](crate::core::adapter::Adapter::start_discovery)
+    StartDiscovery,
+}
+
+/// A failed [`AdapterAction`].
+pub type AdapterError = super::ActionError<AdapterAction>;
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn uuid_filters_are_a_string_array() {
+        let filter = DiscoveryFilterOptions {
+            uuids: Some(vec!["0000110b-0000-1000-8000-00805f9b34fb"]),
+            ..DiscoveryFilterOptions::default()
+        }
+        .to_filter();
+
+        assert_eq!(filter["UUIDs"].value_signature().to_string(), "as");
+    }
 
     #[test]
     fn address_type_from_str_parses_random() {

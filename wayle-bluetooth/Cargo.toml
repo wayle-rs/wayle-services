@@ -9,17 +9,19 @@ license.workspace = true
 readme = "README.md"
 
 [dependencies]
-async-trait.workspace = true
 derive_more.workspace = true
 futures.workspace = true
+libc.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
-tokio-stream.workspace = true
 tokio-util.workspace = true
 tracing.workspace = true
 wayle-core.workspace = true
-wayle-traits.workspace = true
 zbus.workspace = true
+
+[dev-dependencies]
+# Peer-to-peer connections let tests send requests without a message bus.
+zbus = { workspace = true, features = ["p2p"] }
 
 [lints]
 workspace = true

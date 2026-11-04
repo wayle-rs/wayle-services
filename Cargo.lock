@@ -2914,6 +2914,7 @@ version = "1.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5ac8b6f42ead25368cf5b098aeb3dc8a1a2c05a3eee8a9a1a68c640edbfc79d9"
 dependencies = [
+ "getrandom 0.4.2",
  "js-sys",
  "serde_core",
  "wasm-bindgen",
@@ -3222,16 +3223,14 @@ dependencies = [
 name = "wayle-bluetooth"
 version = "0.1.2"
 dependencies = [
- "async-trait",
  "derive_more",
  "futures",
+ "libc",
  "thiserror 2.0.18",
  "tokio",
- "tokio-stream",
  "tokio-util",
  "tracing",
  "wayle-core",
- "wayle-traits",
  "zbus",
 ]
 

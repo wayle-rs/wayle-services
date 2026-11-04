@@ -1,37 +1,41 @@
-pub(crate) mod controls;
-pub(crate) mod monitoring;
-pub(crate) mod types;
+use std::{collections::HashMap, ptr, sync::Arc};
 
-use std::{collections::HashMap, sync::Arc};
-
-use controls::AdapterControls;
 use derive_more::Debug;
-use tokio_util::sync::CancellationToken;
-use types::AdapterProperties;
-pub use types::{AdapterParams, LiveAdapterParams};
-use wayle_core::{Property, unwrap_dbus};
-use wayle_traits::{ModelMonitoring, Reactive};
-use zbus::{
-    Connection,
-    zvariant::{OwnedObjectPath, Value},
-};
+use tracing::warn;
+use wayle_core::Property;
+use zbus::zvariant::{OwnedObjectPath, OwnedValue, Value};
 
 use crate::{
+    dispatcher::{
+        Call,
+        command::{Command, Commands, Query},
+    },
     error::Error,
-    proxy::adapter::Adapter1Proxy,
+    props::{self, PropertyMap},
     types::{
-        UUID,
-        adapter::{AdapterRole, AddressType, DiscoveryFilterOptions, PowerState},
+        ADAPTER_INTERFACE, UUID,
+        adapter::{
+            AdapterAction, AdapterError, AdapterRole, AddressType, DiscoveryFilter,
+            DiscoveryFilterOptions, PowerState,
+        },
     },
 };
 
 /// Bluetooth adapter from BlueZ.
 ///
-/// Instances from service fields are **live** and auto-update.
-/// Instances from [`BluetoothService::adapter()`](crate::BluetoothService::adapter) are **snapshots**.
-/// Use [`BluetoothService::adapter_monitored()`](crate::BluetoothService::adapter_monitored) for a live instance by path.
+/// Every `Adapter` handed out by [`BluetoothService`](crate::BluetoothService)
+/// is **live**: its properties track BlueZ for as long as the adapter exists.
+/// There is exactly one instance per adapter (look one up by path with
+/// [`BluetoothService::adapter`](crate::BluetoothService::adapter)), shared as
+/// an `Arc`, and adapters compare equal only if they are the same instance.
 ///
-/// # Control Methods
+/// # Actions
+///
+/// Actions return nothing: each is queued to the service, which sends them to
+/// BlueZ in call order, and its outcome shows up only as state, the same way a
+/// change made by any other BlueZ client would. A failure is recorded in
+/// [`AdapterInfo::last_error`]. An action acts on this instance: once the
+/// adapter is removed (or replaced by a new instance), it does nothing.
 ///
 /// - [`set_powered()`](Self::set_powered) - Power on/off
 /// - [`set_discoverable()`](Self::set_discoverable) /
@@ -41,32 +45,37 @@ use crate::{
 /// - [`start_discovery()`](Self::start_discovery) /
 ///   [`stop_discovery()`](Self::stop_discovery) - Device scanning
 /// - [`set_discovery_filter()`](Self::set_discovery_filter) - Filter discovered devices
-/// - [`remove_device()`](Self::remove_device) - Remove a device from the adapter
 /// - [`connect_device()`](Self::connect_device) - Direct connection without discovery
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Adapter {
+    /// Where actions and queries are queued.
     #[debug(skip)]
-    pub(crate) zbus_connection: Connection,
-    #[debug(skip)]
-    pub(crate) cancellation_token: Option<CancellationToken>,
+    commands: Commands,
 
-    /// D-Bus object path for this device.
+    /// D-Bus object path for this adapter.
     pub object_path: OwnedObjectPath,
 
+    /// The adapter's state (live).
+    pub info: Property<Arc<AdapterInfo>>,
+}
+
+/// A BlueZ adapter's state.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdapterInfo {
     /// The Bluetooth device address.
-    pub address: Property<String>,
+    pub address: String,
 
     /// The Bluetooth Address Type. For dual-mode and BR/EDR only adapter this defaults
     /// to "public". Single mode LE adapters may have either value. With privacy enabled
     /// this contains type of Identity Address and not type of address used for
     /// connection.
-    pub address_type: Property<AddressType>,
+    pub address_type: AddressType,
 
     /// The Bluetooth system name (pretty hostname).
     ///
     /// This property is either a static system default or controlled by an external
     /// daemon providing access to the pretty hostname configuration.
-    pub name: Property<String>,
+    pub name: String,
 
     /// The Bluetooth friendly name. This value can be changed.
     ///
@@ -81,13 +90,13 @@ pub struct Adapter {
     ///
     /// Only if the local name needs to be different from the pretty hostname, this
     /// property should be used as last resort.
-    pub alias: Property<String>,
+    pub alias: String,
 
     /// The Bluetooth class of device.
     ///
     /// This property represents the value that is either automatically configured by
     /// DMI/ACPI information or provided as static configuration.
-    pub class: Property<u32>,
+    pub class: u32,
 
     /// Set an adapter to connectable or non-connectable. This is a global setting and
     /// should only be used by the settings application.
@@ -98,14 +107,14 @@ pub struct Adapter {
     /// If required, the application will need to manually set Discoverable to true.
     ///
     /// Note that this property only affects incoming connections.
-    pub connectable: Property<bool>,
+    pub connectable: bool,
 
     /// Switch an adapter on or off. This will also set the appropriate connectable
     /// state of the controller.
     ///
     /// The value of this property is not persistent. After restart or unplugging of the
     /// adapter it will reset back to false.
-    pub powered: Property<bool>,
+    pub powered: bool,
 
     /// The power state of an adapter.
     ///
@@ -113,7 +122,7 @@ pub struct Adapter {
     /// well as being on or off.
     ///
     /// (BlueZ experimental)
-    pub power_state: Property<PowerState>,
+    pub power_state: PowerState,
 
     /// Switch an adapter to discoverable or non-discoverable to either make it visible
     /// or hide it. This is a global setting and should only be used by the settings
@@ -128,16 +137,16 @@ pub struct Adapter {
     /// updated via a PropertiesChanged signal.
     ///
     /// Default: false
-    pub discoverable: Property<bool>,
+    pub discoverable: bool,
 
     /// The discoverable timeout in seconds. A value of zero means that the timeout is
     /// disabled and it will stay in discoverable/limited mode forever.
     ///
     /// Default: 180
-    pub discoverable_timeout: Property<u32>,
+    pub discoverable_timeout: u32,
 
     /// Indicates that a device discovery procedure is active.
-    pub discovering: Property<bool>,
+    pub discovering: bool,
 
     /// Switch an adapter to pairable or non-pairable. This is a global setting and
     /// should only be used by the settings application.
@@ -145,155 +154,126 @@ pub struct Adapter {
     /// Note that this property only affects incoming pairing requests.
     ///
     /// Default: true
-    pub pairable: Property<bool>,
+    pub pairable: bool,
 
     /// The pairable timeout in seconds. A value of zero means that the timeout is
     /// disabled and it will stay in pairable mode forever.
     ///
     /// Default: 0
-    pub pairable_timeout: Property<u32>,
+    pub pairable_timeout: u32,
 
     /// List of 128-bit UUIDs that represents the available local services.
-    pub uuids: Property<Vec<UUID>>,
+    pub uuids: Vec<UUID>,
 
     /// Local Device ID information in modalias format used by the kernel and udev.
-    pub modalias: Property<Option<String>>,
+    pub modalias: Option<String>,
 
     /// List of supported roles.
-    pub roles: Property<Vec<AdapterRole>>,
+    pub roles: Vec<AdapterRole>,
 
     /// List of 128-bit UUIDs that represents the experimental features currently
     /// enabled.
-    pub experimental_features: Property<Vec<UUID>>,
+    pub experimental_features: Vec<UUID>,
 
     /// The manufacturer of the device, as a uint16 company identifier defined by the
     /// Core Bluetooth Specification.
-    pub manufacturer: Property<u16>,
+    pub manufacturer: u16,
 
     /// The Bluetooth version supported by the device, as a core version code defined by
     /// the Core Bluetooth Specification.
-    pub version: Property<u8>,
+    pub version: u8,
+
+    /// The most recent action on this adapter that failed, with the complete
+    /// error. Cleared when BlueZ reports the outcome that action was after
+    /// (e.g. `Powered` changing, by any client, after a failed power change;
+    /// not the `PowerState` transitions BlueZ reverts when a request fails),
+    /// when the same action later succeeds, or by [`Adapter::dismiss_error`].
+    pub last_error: Option<AdapterError>,
 }
 
+/// An adapter is equal only to itself: there is one instance per BlueZ adapter
+/// object, so a replaced instance (e.g. after bluetoothd restarts) is a change.
 impl PartialEq for Adapter {
     fn eq(&self, other: &Self) -> bool {
-        self.object_path == other.object_path
+        ptr::eq(self, other)
     }
 }
 
-impl Reactive for Adapter {
-    type Error = Error;
-    type Context<'a> = AdapterParams<'a>;
-    type LiveContext<'a> = LiveAdapterParams<'a>;
-
-    async fn get(context: Self::Context<'_>) -> Result<Self, Self::Error> {
-        let adapter_proxy = Adapter1Proxy::new(context.connection, &context.path).await?;
-        let props = Self::fetch_properties(&adapter_proxy).await?;
-        Ok(Self::from_properties(
-            props,
-            context.connection,
-            context.path,
-            None,
-        ))
-    }
-
-    async fn get_live(context: Self::LiveContext<'_>) -> Result<Arc<Self>, Self::Error> {
-        let adapter_proxy = Adapter1Proxy::new(context.connection, &context.path).await?;
-        let props = Self::fetch_properties(&adapter_proxy).await?;
-        let adapter = Self::from_properties(
-            props,
-            context.connection,
-            context.path.clone(),
-            Some(context.cancellation_token.child_token()),
-        );
-        let adapter_arc = Arc::new(adapter);
-
-        adapter_arc.clone().start_monitoring().await?;
-
-        Ok(adapter_arc)
-    }
-}
+impl Eq for Adapter {}
 
 impl Adapter {
     /// Sets the Bluetooth friendly name (alias) of the adapter.
     ///
     /// Setting an empty string will revert to the system-provided name.
     ///
-    /// # Errors
-    ///
-    /// Returns error if the D-Bus operation fails or the adapter is not available.
-    pub async fn set_alias(&self, alias: &str) -> Result<(), Error> {
-        AdapterControls::set_alias(&self.zbus_connection, &self.object_path, alias).await
+    /// A failure is recorded in [`AdapterInfo::last_error`].
+    pub fn set_alias(self: &Arc<Self>, alias: &str) {
+        self.request(
+            AdapterAction::SetAlias,
+            self.property("Alias", alias.to_owned()),
+        );
     }
 
     /// Sets whether the adapter is connectable.
     ///
     /// Note: Setting this to false will also set Discoverable to false.
     ///
-    /// # Errors
-    ///
-    /// Returns error if the D-Bus operation fails or the adapter is not available.
-    pub async fn set_connectable(&self, connectable: bool) -> Result<(), Error> {
-        AdapterControls::set_connectable(&self.zbus_connection, &self.object_path, connectable)
-            .await
+    /// A failure is recorded in [`AdapterInfo::last_error`].
+    pub fn set_connectable(self: &Arc<Self>, connectable: bool) {
+        let call = self.property("Connectable", connectable);
+        self.request(AdapterAction::SetConnectable, call);
     }
 
     /// Powers the adapter on or off.
     ///
     /// This will also set the appropriate connectable state of the controller.
     ///
-    /// # Errors
-    ///
-    /// Returns error if the D-Bus operation fails or the adapter is not available.
-    pub async fn set_powered(&self, powered: bool) -> Result<(), Error> {
-        AdapterControls::set_powered(&self.zbus_connection, &self.object_path, powered).await
+    /// A failure is recorded in [`AdapterInfo::last_error`].
+    pub fn set_powered(self: &Arc<Self>, powered: bool) {
+        let (action, call) = self.power_request(powered);
+        self.request(action, call);
     }
 
     /// Sets whether the adapter is discoverable.
     ///
     /// This is a global setting and should only be used by a settings application.
     ///
-    /// # Errors
-    ///
-    /// Returns error if the D-Bus operation fails or the adapter is not available.
-    pub async fn set_discoverable(&self, discoverable: bool) -> Result<(), Error> {
-        AdapterControls::set_discoverable(&self.zbus_connection, &self.object_path, discoverable)
-            .await
+    /// A failure is recorded in [`AdapterInfo::last_error`].
+    pub fn set_discoverable(self: &Arc<Self>, discoverable: bool) {
+        let call = self.property("Discoverable", discoverable);
+        self.request(AdapterAction::SetDiscoverable, call);
     }
 
     /// Sets the discoverable timeout in seconds.
     ///
     /// A value of 0 means that the timeout is disabled and the adapter will stay in discoverable mode indefinitely.
     ///
-    /// # Errors
-    ///
-    /// Returns error if the D-Bus operation fails or the adapter is not available.
-    pub async fn set_discoverable_timeout(&self, timeout: u32) -> Result<(), Error> {
-        AdapterControls::set_discoverable_timeout(&self.zbus_connection, &self.object_path, timeout)
-            .await
+    /// A failure is recorded in [`AdapterInfo::last_error`].
+    pub fn set_discoverable_timeout(self: &Arc<Self>, timeout: u32) {
+        let call = self.property("DiscoverableTimeout", timeout);
+        self.request(AdapterAction::SetDiscoverableTimeout, call);
     }
 
     /// Sets whether the adapter is pairable.
     ///
     /// This is a global setting and should only be used by a settings application.
     ///
-    /// # Errors
-    ///
-    /// Returns error if the D-Bus operation fails or the adapter is not available.
-    pub async fn set_pairable(&self, pairable: bool) -> Result<(), Error> {
-        AdapterControls::set_pairable(&self.zbus_connection, &self.object_path, pairable).await
+    /// A failure is recorded in [`AdapterInfo::last_error`].
+    pub fn set_pairable(self: &Arc<Self>, pairable: bool) {
+        self.request(
+            AdapterAction::SetPairable,
+            self.property("Pairable", pairable),
+        );
     }
 
     /// Sets the pairable timeout in seconds.
     ///
     /// A value of 0 means that the timeout is disabled and the adapter will stay in pairable mode indefinitely.
     ///
-    /// # Errors
-    ///
-    /// Returns error if the D-Bus operation fails or the adapter is not available.
-    pub async fn set_pairable_timeout(&self, timeout: u32) -> Result<(), Error> {
-        AdapterControls::set_pairable_timeout(&self.zbus_connection, &self.object_path, timeout)
-            .await
+    /// A failure is recorded in [`AdapterInfo::last_error`].
+    pub fn set_pairable_timeout(self: &Arc<Self>, timeout: u32) {
+        let call = self.property("PairableTimeout", timeout);
+        self.request(AdapterAction::SetPairableTimeout, call);
     }
 
     /// Sets the device discovery filter for the caller. When this method is called with
@@ -315,66 +295,94 @@ impl Adapter {
     /// It is useful when client will create first discovery session, to ensure that
     /// proper scan will be started right after call to StartDiscovery.
     ///
-    /// # Errors
-    ///
-    /// Returns error if the D-Bus operation fails or the adapter is not available.
-    pub async fn set_discovery_filter(
-        &self,
-        options: DiscoveryFilterOptions<'_>,
-    ) -> Result<(), Error> {
-        let filter = options.to_filter();
-        AdapterControls::set_discovery_filter(&self.zbus_connection, &self.object_path, filter)
-            .await
+    /// A failure is recorded in [`AdapterInfo::last_error`].
+    pub fn set_discovery_filter(self: &Arc<Self>, options: DiscoveryFilterOptions<'_>) {
+        let filter = options
+            .to_filter()
+            .into_iter()
+            .map(|(key, value)| value.try_to_owned().map(|value| (key, Value::from(value))))
+            .collect::<Result<DiscoveryFilter<'static>, _>>();
+
+        match filter {
+            Ok(filter) => {
+                let call = Call::method_with_dict(
+                    &self.object_path,
+                    ADAPTER_INTERFACE,
+                    "SetDiscoveryFilter",
+                    filter,
+                );
+                self.request(AdapterAction::SetDiscoveryFilter, call);
+            }
+            Err(err) => {
+                warn!(adapter = %self.object_path, error = %err, "invalid discovery filter")
+            }
+        }
     }
 
     /// Starts device discovery session which may include starting an inquiry and/or
     /// scanning procedures and remote device name resolving.
     ///
     /// This process will start creating Device objects as new devices are discovered.
-    /// Each client can request a single device discovery session per adapter.
+    /// Each client can request a single device discovery session per adapter,
+    /// shared with this service's own [`start_discovery`](crate::BluetoothService::start_discovery)
+    /// (whose timeout, if any, this cancels). It lasts until stopped, or until
+    /// the adapter powers off.
     ///
-    /// # Errors
+    /// Nothing is sent while this client's session is already running, as far
+    /// as BlueZ's answers go. A BlueZ bug can end the discovery early (see
+    /// [`BluetoothService::start_discovery`](crate::BluetoothService::start_discovery));
+    /// it can then be started again only after
+    /// [`stop_discovery`](Self::stop_discovery).
     ///
+    /// # Failures
+    ///
+    /// Recorded in [`AdapterInfo::last_error`]; BlueZ may report:
     /// - `NotReady` - Adapter not ready
+    /// - `InProgress` - The controller refused to start discovering
     /// - `Failed` - Operation failed
-    /// - `InProgress` - Discovery already in progress
-    pub async fn start_discovery(&self) -> Result<(), Error> {
-        AdapterControls::start_discovery(&self.zbus_connection, &self.object_path).await
+    pub fn start_discovery(self: &Arc<Self>) {
+        self.commands.send(Command::Discover {
+            adapter: Arc::clone(self),
+            start: true,
+        });
     }
 
-    /// Stops device discovery session started by start_discovery.
+    /// Stops this client's device discovery session on the adapter.
     ///
     /// Note that a discovery procedure is shared between all discovery sessions thus
     /// calling stop_discovery will only release a single session and discovery will stop
     /// when all sessions from all clients have finished.
     ///
-    /// # Errors
-    ///
-    /// - `NotReady` - Adapter not ready
-    /// - `Failed` - Operation failed
-    /// - `NotAuthorized` - Not authorized to stop discovery
-    pub async fn stop_discovery(&self) -> Result<(), Error> {
-        AdapterControls::stop_discovery(&self.zbus_connection, &self.object_path).await
+    /// Stopping is not recorded as a failure if it is refused: BlueZ ends a
+    /// client's session by itself (when the adapter powers off, and even when
+    /// the controller refuses to stop), and a client without a session has
+    /// nothing to stop.
+    pub fn stop_discovery(self: &Arc<Self>) {
+        self.commands.send(Command::Discover {
+            adapter: Arc::clone(self),
+            start: false,
+        });
     }
 
-    /// Removes the remote device object at the given path including cached information
-    /// such as bonding information.
-    ///
-    /// # Errors
-    ///
-    /// - `InvalidArguments` - Invalid device path
-    /// - `Failed` - Operation failed
-    pub async fn remove_device(&self, device_path: &OwnedObjectPath) -> Result<(), Error> {
-        AdapterControls::remove_device(&self.zbus_connection, &self.object_path, device_path).await
+    /// Stops reporting the most recent failure: clears
+    /// [`AdapterInfo::last_error`] for every consumer. BlueZ is not involved;
+    /// the adapter's own state is unchanged.
+    pub fn dismiss_error(self: &Arc<Self>) {
+        self.commands
+            .send(Command::DismissAdapterError(Arc::clone(self)));
     }
 
     /// Returns available filters that can be given to set_discovery_filter.
     ///
     /// # Errors
     ///
-    /// Returns error if the D-Bus operation fails or the adapter is not available.
+    /// Returns error if the D-Bus operation fails or the adapter is not
+    /// available, or [`Error::ServiceStopped`] once the service is gone.
     pub async fn get_discovery_filters(&self) -> Result<Vec<String>, Error> {
-        AdapterControls::get_discovery_filters(&self.zbus_connection, &self.object_path).await
+        let adapter = self.object_path.clone();
+        self.commands
+            .query(|reply| Query::DiscoveryFilters { adapter, reply })
+            .await
     }
 
     /// Connects to device without need of performing General Discovery.
@@ -390,132 +398,196 @@ impl Adapter {
     ///
     /// # Errors
     ///
+    /// BlueZ may report:
     /// - `InvalidArguments` - Invalid properties
     /// - `AlreadyExists` - Device already exists
     /// - `NotSupported` - Not supported
     /// - `NotReady` - Adapter not ready
     /// - `Failed` - Operation failed
+    ///
+    /// [`Error::ServiceStopped`] once the service is gone.
     pub async fn connect_device(
         &self,
         properties: HashMap<String, Value<'_>>,
     ) -> Result<OwnedObjectPath, Error> {
-        AdapterControls::connect_device(&self.zbus_connection, &self.object_path, properties).await
+        let properties = properties
+            .into_iter()
+            .map(|(key, value)| value.try_to_owned().map(|value| (key, value)))
+            .collect::<Result<HashMap<String, OwnedValue>, _>>()
+            .map_err(zbus::Error::from)?;
+        let adapter = self.object_path.clone();
+
+        self.commands
+            .query(|reply| Query::ConnectDevice {
+                adapter,
+                properties,
+                reply,
+            })
+            .await
     }
 
-    #[allow(clippy::too_many_lines)]
-    async fn fetch_properties(proxy: &Adapter1Proxy<'_>) -> Result<AdapterProperties, Error> {
-        let (
-            address,
-            address_type,
-            name,
-            alias,
-            class,
-            connectable,
-            powered,
-            power_state,
-            discoverable,
-            discoverable_timeout,
-            discovering,
-            pairable,
-            pairable_timeout,
-            uuids,
-            modalias,
-            roles,
-            experimental_features,
-            manufacturer,
-            version,
-        ) = tokio::join!(
-            proxy.address(),
-            proxy.address_type(),
-            proxy.name(),
-            proxy.alias(),
-            proxy.class(),
-            proxy.connectable(),
-            proxy.powered(),
-            proxy.power_state(),
-            proxy.discoverable(),
-            proxy.discoverable_timeout(),
-            proxy.discovering(),
-            proxy.pairable(),
-            proxy.pairable_timeout(),
-            proxy.uuids(),
-            proxy.modalias(),
-            proxy.roles(),
-            proxy.experimental_features(),
-            proxy.manufacturer(),
-            proxy.version()
-        );
-
-        Ok(AdapterProperties {
-            address: unwrap_dbus!(address),
-            address_type: unwrap_dbus!(address_type),
-            name: unwrap_dbus!(name),
-            alias: unwrap_dbus!(alias),
-            class: unwrap_dbus!(class),
-            connectable: unwrap_dbus!(connectable),
-            powered: unwrap_dbus!(powered),
-            power_state: unwrap_dbus!(power_state),
-            discoverable: unwrap_dbus!(discoverable),
-            discoverable_timeout: unwrap_dbus!(discoverable_timeout),
-            discovering: unwrap_dbus!(discovering),
-            pairable: unwrap_dbus!(pairable),
-            pairable_timeout: unwrap_dbus!(pairable_timeout),
-            uuids: unwrap_dbus!(uuids),
-            modalias: modalias.ok(),
-            roles: unwrap_dbus!(roles),
-            experimental_features: unwrap_dbus!(experimental_features),
-            manufacturer: unwrap_dbus!(manufacturer),
-            version: unwrap_dbus!(version),
-        })
-    }
-
-    fn from_properties(
-        props: AdapterProperties,
-        connection: &Connection,
+    /// Builds an adapter from the property map of its `Adapter1` interface.
+    pub(crate) fn new(
+        commands: &Commands,
         object_path: OwnedObjectPath,
-        cancellation_token: Option<CancellationToken>,
+        adapter1: PropertyMap,
     ) -> Self {
+        let mut info = AdapterInfo::empty();
+        info.apply_adapter1(adapter1, &[]);
+
         Self {
+            commands: commands.clone(),
             object_path,
-            zbus_connection: connection.clone(),
-            cancellation_token,
-            address: Property::new(props.address),
-            address_type: Property::new(AddressType::from(props.address_type.as_str())),
-            name: Property::new(props.name),
-            alias: Property::new(props.alias),
-            class: Property::new(props.class),
-            connectable: Property::new(props.connectable),
-            powered: Property::new(props.powered),
-            power_state: Property::new(PowerState::from(props.power_state.as_str())),
-            discoverable: Property::new(props.discoverable),
-            discoverable_timeout: Property::new(props.discoverable_timeout),
-            discovering: Property::new(props.discovering),
-            pairable: Property::new(props.pairable),
-            pairable_timeout: Property::new(props.pairable_timeout),
-            uuids: Property::new(
-                props
-                    .uuids
-                    .into_iter()
-                    .map(|s| UUID::from(s.as_str()))
-                    .collect(),
-            ),
-            modalias: Property::new(props.modalias),
-            roles: Property::new(
-                props
-                    .roles
-                    .into_iter()
-                    .map(|s| AdapterRole::from(s.as_str()))
-                    .collect(),
-            ),
-            experimental_features: Property::new(
-                props
-                    .experimental_features
-                    .into_iter()
-                    .map(|s| UUID::from(s.as_str()))
-                    .collect(),
-            ),
-            manufacturer: Property::new(props.manufacturer),
-            version: Property::new(props.version),
+            info: Property::new(Arc::new(info)),
+        }
+    }
+
+    /// The request powering this adapter on or off (also sent by the
+    /// dispatcher for [`BluetoothService::enable`](crate::BluetoothService::enable)
+    /// and [`disable`](crate::BluetoothService::disable)).
+    pub(crate) fn power_request(&self, powered: bool) -> (AdapterAction, Call) {
+        (AdapterAction::SetPowered, self.property("Powered", powered))
+    }
+
+    /// Queues `call`, the request for `action` on this instance.
+    fn request(self: &Arc<Self>, action: AdapterAction, call: Call) {
+        self.commands.send(Command::Adapter {
+            adapter: Arc::clone(self),
+            action,
+            call,
+        });
+    }
+
+    /// Setting the `org.bluez.Adapter1` property `name`.
+    fn property(&self, name: &'static str, value: impl Into<Value<'static>>) -> Call {
+        Call::set_property(&self.object_path, ADAPTER_INTERFACE, name, value)
+    }
+}
+
+/// Whether BlueZ now reports the outcome a failed `action` was after, which
+/// makes its error stale.
+pub(crate) fn outcome_reported(
+    action: AdapterAction,
+    old: &AdapterInfo,
+    new: &AdapterInfo,
+) -> bool {
+    match action {
+        AdapterAction::SetPowered => new.powered != old.powered,
+        AdapterAction::StartDiscovery => new.discovering && !old.discovering,
+        AdapterAction::SetAlias => new.alias != old.alias,
+        AdapterAction::SetConnectable => new.connectable != old.connectable,
+        AdapterAction::SetDiscoverable => new.discoverable != old.discoverable,
+        AdapterAction::SetDiscoverableTimeout => {
+            new.discoverable_timeout != old.discoverable_timeout
+        }
+        AdapterAction::SetPairable => new.pairable != old.pairable,
+        AdapterAction::SetPairableTimeout => new.pairable_timeout != old.pairable_timeout,
+        AdapterAction::SetDiscoveryFilter => false,
+    }
+}
+
+impl AdapterInfo {
+    pub(crate) fn empty() -> Self {
+        Self {
+            address: String::new(),
+            address_type: AddressType::from(""),
+            name: String::new(),
+            alias: String::new(),
+            class: 0,
+            connectable: false,
+            powered: false,
+            power_state: PowerState::from(""),
+            discoverable: false,
+            discoverable_timeout: 0,
+            discovering: false,
+            pairable: false,
+            pairable_timeout: 0,
+            uuids: Vec::new(),
+            modalias: None,
+            roles: Vec::new(),
+            experimental_features: Vec::new(),
+            manufacturer: 0,
+            version: 0,
+            last_error: None,
+        }
+    }
+
+    /// Whether BlueZ is keeping this adapter on, or turning it on.
+    ///
+    /// BlueZ moves `PowerState` to `off-enabling` / `on-disabling` as soon as it
+    /// accepts a power change from any client, and back if the change fails,
+    /// so this follows a request immediately without assuming its outcome. In
+    /// the stable states (and on BlueZ versions without `PowerState`) it is
+    /// `Powered`.
+    pub(crate) fn power_target(&self) -> bool {
+        match self.power_state {
+            PowerState::OffToOn => true,
+            PowerState::OnToOff => false,
+            PowerState::On | PowerState::Off | PowerState::OffBlocked => self.powered,
+        }
+    }
+
+    /// Whether the adapter is on and staying on. BlueZ connects devices and
+    /// discovers only then: it refuses both as soon as it accepts a power-off
+    /// (`PowerState` `on-disabling`), while `Powered` is still true.
+    pub(crate) fn usable(&self) -> bool {
+        self.powered && self.power_state != PowerState::OnToOff
+    }
+
+    /// Applies changed and invalidated `org.bluez.Adapter1` properties.
+    pub(crate) fn apply_adapter1(&mut self, changed: PropertyMap, invalidated: &[String]) {
+        for (name, value) in changed {
+            match name.as_str() {
+                "Address" => props::assign(&mut self.address, &name, value),
+                "AddressType" => {
+                    props::assign_with(&mut self.address_type, &name, value, |raw: String| {
+                        AddressType::from(raw.as_str())
+                    })
+                }
+                "Name" => props::assign(&mut self.name, &name, value),
+                "Alias" => props::assign(&mut self.alias, &name, value),
+                "Class" => props::assign(&mut self.class, &name, value),
+                "Connectable" => props::assign(&mut self.connectable, &name, value),
+                "Powered" => props::assign(&mut self.powered, &name, value),
+                "PowerState" => {
+                    props::assign_with(&mut self.power_state, &name, value, |raw: String| {
+                        PowerState::from(raw.as_str())
+                    })
+                }
+                "Discoverable" => props::assign(&mut self.discoverable, &name, value),
+                "DiscoverableTimeout" => {
+                    props::assign(&mut self.discoverable_timeout, &name, value)
+                }
+                "Discovering" => props::assign(&mut self.discovering, &name, value),
+                "Pairable" => props::assign(&mut self.pairable, &name, value),
+                "PairableTimeout" => props::assign(&mut self.pairable_timeout, &name, value),
+                "UUIDs" => props::assign(&mut self.uuids, &name, value),
+                "Modalias" => {
+                    props::assign_with(&mut self.modalias, &name, value, |raw: String| {
+                        (!raw.is_empty()).then_some(raw)
+                    })
+                }
+                "Roles" => props::assign_with(&mut self.roles, &name, value, |raw: Vec<String>| {
+                    raw.iter()
+                        .map(|role| AdapterRole::from(role.as_str()))
+                        .collect()
+                }),
+                "ExperimentalFeatures" => {
+                    props::assign(&mut self.experimental_features, &name, value)
+                }
+                "Manufacturer" => props::assign(&mut self.manufacturer, &name, value),
+                "Version" => props::assign(&mut self.version, &name, value),
+                _ => {}
+            }
+        }
+
+        // Properties BlueZ stops exporting are reported as invalidated.
+        for name in invalidated {
+            match name.as_str() {
+                "Modalias" => self.modalias = None,
+                "ExperimentalFeatures" => self.experimental_features.clear(),
+                _ => {}
+            }
         }
     }
 }
