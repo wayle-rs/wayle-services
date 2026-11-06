@@ -8,6 +8,7 @@ members = [
     "wayle-cava",
     "wayle-core",
     "wayle-hyprland",
+    "wayle-iwd",
     "wayle-mango",
     "wayle-media",
     "wayle-network",

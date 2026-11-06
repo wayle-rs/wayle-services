@@ -2914,6 +2914,7 @@ version = "1.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5ac8b6f42ead25368cf5b098aeb3dc8a1a2c05a3eee8a9a1a68c640edbfc79d9"
 dependencies = [
+ "getrandom 0.4.2",
  "js-sys",
  "serde_core",
  "wasm-bindgen",
@@ -3301,6 +3302,20 @@ dependencies = [
  "tracing",
  "wayle-core",
  "wayle-traits",
+]
+
+[[package]]
+name = "wayle-iwd"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "futures",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "wayle-core",
+ "zbus",
 ]
 
 [[package]]
