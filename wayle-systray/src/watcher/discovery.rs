@@ -1,120 +1,79 @@
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
-use tokio::sync::{RwLock, broadcast};
-use tokio_util::sync::CancellationToken;
+use futures::stream::{self, StreamExt};
 use tracing::{debug, info, warn};
-use zbus::{Connection, fdo::DBusProxy, names::OwnedBusName};
+use zbus::{Connection, fdo::DBusProxy, names::OwnedUniqueName};
 
-use super::register_item;
-use crate::{events::TrayEvent, proxy::status_notifier_item::StatusNotifierItemProxy};
+use crate::{proxy::status_notifier_item::StatusNotifierItemProxy, registrar::RegistrarHandle};
 
 const PROBE_TIMEOUT: Duration = Duration::from_millis(500);
+const PROBE_CONCURRENCY: usize = 16;
 
-/// Scans the bus for SNI items that didn't re-register after a watcher restart.
-pub(crate) fn spawn_orphan_scan(
-    connection: Connection,
-    registered_items: Arc<RwLock<Vec<String>>>,
-    event_tx: broadcast::Sender<TrayEvent>,
-    cancellation_token: CancellationToken,
-    own_name: String,
+/// One-shot recovery, run once when we acquire the watcher name.
+///
+/// Some applications register with a *previous* watcher and never re-register when a new
+/// one appears, so they would be invisible after a watcher restart. We enumerate the live
+/// unique connections, probe each for a `StatusNotifierItem`, and hand any we find to the
+/// registrar. This is reactive to startup, not a poll: it runs exactly once and never
+/// repeats. Items it registers are keyed by owner just like live registrations, so an app
+/// recovered here and the same app re-registering later collapse to one entry.
+pub(crate) fn spawn_startup_discovery(
+    conn: Connection,
+    registrar: RegistrarHandle,
+    own_names: Vec<String>,
 ) {
-    tokio::spawn(scan_bus(
-        connection,
-        registered_items,
-        event_tx,
-        cancellation_token,
-        own_name,
-    ));
+    tokio::spawn(async move {
+        discover(&conn, &registrar, &own_names).await;
+    });
 }
 
-#[allow(clippy::cognitive_complexity)]
-async fn scan_bus(
-    connection: Connection,
-    registered_items: Arc<RwLock<Vec<String>>>,
-    event_tx: broadcast::Sender<TrayEvent>,
-    cancellation_token: CancellationToken,
-    own_name: String,
-) {
-    let Some(candidates) = list_candidate_names(&connection, &own_name).await else {
+async fn discover(conn: &Connection, registrar: &RegistrarHandle, own_names: &[String]) {
+    let Ok(dbus) = DBusProxy::new(conn).await else {
+        warn!("cannot create DBus proxy for startup discovery");
+        return;
+    };
+    let Ok(names) = dbus.list_names().await else {
+        warn!("cannot list bus names for startup discovery");
         return;
     };
 
-    debug!(
-        count = candidates.len(),
-        "scanning bus for orphaned SNI items"
-    );
-
-    let mut found = 0u32;
-
-    for bus_name in &candidates {
-        if cancellation_token.is_cancelled() {
-            return;
-        }
-
-        let name_str = bus_name.as_str();
-
-        if is_registered(&registered_items, name_str).await {
-            continue;
-        }
-
-        if !probe_sni(&connection, name_str).await {
-            continue;
-        }
-
-        if register_item(name_str, &registered_items, &event_tx, &connection).await {
-            info!(service = %name_str, "recovered orphaned SNI item");
-            found += 1;
-        }
-    }
-
-    if found > 0 {
-        info!(count = found, "recovered orphaned SNI items");
-    }
-}
-
-async fn list_candidate_names(
-    connection: &Connection,
-    own_name: &str,
-) -> Option<Vec<OwnedBusName>> {
-    let dbus_proxy = match DBusProxy::new(connection).await {
-        Ok(proxy) => proxy,
-        Err(error) => {
-            warn!(error = %error, "cannot create DBus proxy for orphan scan");
-            return None;
-        }
-    };
-
-    let bus_names = match dbus_proxy.list_names().await {
-        Ok(names) => names,
-        Err(error) => {
-            warn!(error = %error, "cannot list bus names for orphan scan");
-            return None;
-        }
-    };
-
-    let candidates = bus_names
+    let candidates: Vec<String> = names
         .into_iter()
-        .filter(|name| {
-            let name = name.as_str();
-            name.starts_with(':') && name != own_name
-        })
+        .map(|name| name.as_str().to_string())
+        .filter(|name| name.starts_with(':') && !own_names.iter().any(|own| own == name))
         .collect();
 
-    Some(candidates)
+    debug!(count = candidates.len(), "probing bus for orphaned SNI items");
+
+    // Probe concurrently: a single wedged peer must not stall recovery of the rest.
+    let found: Vec<String> = stream::iter(candidates)
+        .map(|name| async move {
+            if probe_sni(conn, &name).await {
+                Some(name)
+            } else {
+                None
+            }
+        })
+        .buffer_unordered(PROBE_CONCURRENCY)
+        .filter_map(|result| async move { result })
+        .collect()
+        .await;
+
+    for name in &found {
+        // A candidate is itself a unique connection name, so it is its own owner.
+        if let Ok(owner) = OwnedUniqueName::try_from(name.as_str()) {
+            registrar.register(name.clone(), Some(owner));
+        }
+    }
+
+    if !found.is_empty() {
+        info!(count = found.len(), "recovered orphaned SNI items");
+    }
 }
 
-async fn is_registered(items: &Arc<RwLock<Vec<String>>>, bus_name: &str) -> bool {
-    let items = items.read().await;
-    let prefix = format!("{bus_name}/");
-
-    items
-        .iter()
-        .any(|registered| registered == bus_name || registered.starts_with(&prefix))
-}
-
-async fn probe_sni(connection: &Connection, bus_name: &str) -> bool {
+async fn probe_sni(conn: &Connection, bus_name: &str) -> bool {
     let probe = async {
-        let proxy = StatusNotifierItemProxy::builder(connection)
+        let proxy = StatusNotifierItemProxy::builder(conn)
             .destination(bus_name)?
             .build()
             .await?;

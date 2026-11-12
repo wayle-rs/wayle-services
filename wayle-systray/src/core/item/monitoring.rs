@@ -143,10 +143,19 @@ async fn monitor_properties(
         }
     };
 
-    let mut new_icon_has_name_property = true;
     let mut menu_dirty = false;
     let menu_debounce = sleep(MENU_DEBOUNCE);
     tokio::pin!(menu_debounce);
+
+    // Re-read all properties now that the signal subscriptions above are established.
+    // `get_live` fetched them *before* this monitor task subscribed, so any value an
+    // app set in that window — common for apps that register first and populate
+    // afterwards — emitted its NewIcon/PropertiesChanged into the gap and was missed
+    // (leaving, e.g., the fallback icon or an empty title). Re-reading here closes that
+    // gap; any change after this point is caught by the loop below.
+    if let Some(tray_item) = weak_item.upgrade() {
+        resync_properties(&item_proxy, &menu_proxy, &tray_item).await;
+    }
 
     loop {
         let Some(tray_item) = weak_item.upgrade() else {
@@ -322,25 +331,7 @@ async fn monitor_properties(
 
             Some(_) = new_icon.next() => {
                 debug!("NewIcon signal received");
-                if new_icon_has_name_property {
-                    match item_proxy.icon_name().await {
-                        Ok(name) => {
-                            let icon_name = if name.is_empty() { None } else { Some(name) };
-                            tray_item.icon_name.set(icon_name);
-                        }
-                        Err(error) => {
-                            if is_unknown_property_error(&error) {
-                                debug!("IconName property is unsupported for this tray item; skipping future refreshes");
-                                new_icon_has_name_property = false;
-                                tray_item.icon_name.set(None);
-                            }
-                        }
-                    }
-                }
-                if let Ok(pixmaps) = item_proxy.icon_pixmap().await {
-                    let pixmaps: Vec<IconPixmap> = pixmaps.into_iter().map(Into::into).collect();
-                    tray_item.icon_pixmap.set(pixmaps);
-                }
+                refresh_icon(&item_proxy, &tray_item).await;
             }
 
             Some(_) = new_attention_icon.next() => {
@@ -372,5 +363,113 @@ async fn monitor_properties(
                 break;
             }
         }
+    }
+}
+
+fn filter_empty(value: String) -> Option<String> {
+    if value.is_empty() { None } else { Some(value) }
+}
+
+/// Re-reads every property once, right after the signal subscriptions are established.
+/// `get_live` fetched these *before* this task subscribed, so a value an app set in that
+/// window was missed and no `*Changed`/`New*` signal will replay it. Each property is
+/// written only when its read succeeds, so a transient error never clobbers a value that
+/// was fetched correctly by `get_live`; if the connection has since died, every read
+/// fails and nothing is overwritten (the item is removed via NameOwnerChanged instead).
+#[allow(clippy::cognitive_complexity)]
+async fn resync_properties(
+    item_proxy: &StatusNotifierItemProxy<'static>,
+    menu_proxy: &DBusMenuProxy<'static>,
+    tray_item: &TrayItem,
+) {
+    if let Ok(value) = item_proxy.id().await {
+        tray_item.id.set(value);
+    }
+    if let Ok(value) = item_proxy.title().await {
+        tray_item.title.set(value);
+    }
+    if let Ok(value) = item_proxy.category().await {
+        tray_item.category.set(Category::from(value.as_str()));
+    }
+    if let Ok(value) = item_proxy.status().await {
+        tray_item.status.set(Status::from(value.as_str()));
+    }
+    if let Ok(value) = item_proxy.window_id().await {
+        tray_item.window_id.set(value);
+    }
+    if let Ok(value) = item_proxy.item_is_menu().await {
+        tray_item.item_is_menu.set(value);
+    }
+    if let Ok(value) = item_proxy.icon_theme_path().await {
+        tray_item.icon_theme_path.set(filter_empty(value));
+    }
+    if let Ok(value) = item_proxy.tool_tip().await {
+        tray_item.tooltip.set(Tooltip::from(value));
+    }
+    if let Ok(value) = item_proxy.menu().await {
+        tray_item.menu_path.set(value);
+    }
+    if let Ok(value) = item_proxy.overlay_icon_name().await {
+        tray_item.overlay_icon_name.set(filter_empty(value));
+    }
+    if let Ok(pixmaps) = item_proxy.overlay_icon_pixmap().await {
+        let pixmaps: Vec<IconPixmap> = pixmaps.into_iter().map(Into::into).collect();
+        tray_item.overlay_icon_pixmap.set(pixmaps);
+    }
+    if let Ok(value) = item_proxy.attention_icon_name().await {
+        tray_item.attention_icon_name.set(filter_empty(value));
+    }
+    if let Ok(pixmaps) = item_proxy.attention_icon_pixmap().await {
+        let pixmaps: Vec<IconPixmap> = pixmaps.into_iter().map(Into::into).collect();
+        tray_item.attention_icon_pixmap.set(pixmaps);
+    }
+    if let Ok(value) = item_proxy.attention_movie_name().await {
+        tray_item.attention_movie_name.set(filter_empty(value));
+    }
+
+    refresh_icon(item_proxy, tray_item).await;
+
+    if let Ok(layout) = menu_proxy.get_layout(0, -1, vec![]).await {
+        tray_item.menu.set(Some(MenuItem::from(layout)));
+    }
+}
+
+/// Reads the item's current icon (name and pixmap) and updates the reactive properties.
+/// Used both for the initial post-subscription sync and in response to `NewIcon` signals.
+///
+/// The read goes through a *fresh* proxy that eagerly caches via a single `GetAll`, rather
+/// than the caller's non-caching proxy. `GetAll` is the only way to read the icon for apps
+/// (e.g. libappindicator-based ones) that publish `IconName`/`IconPixmap` through `GetAll`
+/// yet answer an individual property `Get` with `UnknownProperty` — reading those
+/// individually would wrongly clear the icon. Rebuilding on each call re-runs `GetAll`, so
+/// the values stay current after a `NewIcon`. A read that fails with `UnknownProperty`
+/// means the app genuinely has no such property (fall back to the pixmap); any other error
+/// (a vanished connection) leaves the existing value untouched rather than clobbering it.
+async fn refresh_icon(item_proxy: &StatusNotifierItemProxy<'static>, tray_item: &TrayItem) {
+    let inner = item_proxy.inner();
+    let Ok(builder) =
+        StatusNotifierItemProxy::builder(inner.connection()).destination(inner.destination().clone())
+    else {
+        return;
+    };
+    let Ok(builder) = builder.path(inner.path().clone()) else {
+        return;
+    };
+    let Ok(proxy) = builder.cache_properties(CacheProperties::Yes).build().await else {
+        return;
+    };
+
+    match proxy.icon_name().await {
+        Ok(name) => tray_item.icon_name.set(filter_empty(name)),
+        Err(error) if is_unknown_property_error(&error) => tray_item.icon_name.set(None),
+        Err(_) => {}
+    }
+
+    match proxy.icon_pixmap().await {
+        Ok(pixmaps) => {
+            let pixmaps: Vec<IconPixmap> = pixmaps.into_iter().map(Into::into).collect();
+            tray_item.icon_pixmap.set(pixmaps);
+        }
+        Err(_) => {}
     }
 }

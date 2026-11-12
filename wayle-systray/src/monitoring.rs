@@ -1,213 +1,52 @@
-use std::sync::Arc;
+//! Host-mode producers.
+//!
+//! In watcher mode the registrar is fed by the watcher interface and startup discovery.
+//! In host mode we instead consume an *external* watcher's registration signals and
+//! forward them to the registrar. This is the only place that knows about the external
+//! watcher; the registrar stays mode-agnostic.
 
-use tokio_stream::StreamExt;
+use futures::StreamExt;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info, instrument, warn};
-use wayle_core::Property;
-use wayle_traits::{Reactive, ServiceMonitoring};
-use zbus::{Connection, fdo::DBusProxy};
+use tracing::info;
+use zbus::Connection;
 
-use super::{
-    core::item::{LiveTrayItemParams, TrayItem},
-    error::Error,
-    events::TrayEvent,
-    proxy::status_notifier_watcher::StatusNotifierWatcherProxy,
-    service::SystemTrayService,
+use crate::{
+    error::Error, proxy::status_notifier_watcher::StatusNotifierWatcherProxy,
+    registrar::RegistrarHandle,
 };
 
-impl ServiceMonitoring for SystemTrayService {
-    type Error = Error;
-
-    #[instrument(skip_all, err)]
-    async fn start_monitoring(&self) -> Result<(), Self::Error> {
-        if self.is_watcher {
-            handle_watcher_mode(self).await?;
-        } else {
-            handle_host_mode(self).await?;
-        }
-        Ok(())
-    }
-}
-
-#[instrument(skip_all)]
-async fn handle_watcher_mode(service: &SystemTrayService) -> Result<(), Error> {
-    let mut event_receiver = service
-        .event_rx
-        .lock()
-        .ok()
-        .and_then(|mut guard| guard.take())
-        .unwrap_or_else(|| service.event_tx.subscribe());
-    let items = service.items.clone();
-    let cancellation_token = service.cancellation_token.clone();
-    let connection = service.connection.clone();
-
-    tokio::spawn(async move {
-        loop {
-            tokio::select! {
-                _ = cancellation_token.cancelled() => {
-                    info!("Systray watcher monitoring cancelled");
-                    return;
-                }
-                Ok(event) = event_receiver.recv() => {
-                    match event {
-                        TrayEvent::ItemRegistered(bus_name) => {
-                            if let Err(error) = handle_item_registered(
-                                &bus_name,
-                                &items,
-                                &connection,
-                                &cancellation_token,
-                            )
-                            .await
-                            {
-                                warn!(error = %error, bus_name = %bus_name, "cannot handle registration");
-                            }
-                        }
-                        TrayEvent::ItemUnregistered(bus_name) => {
-                            handle_item_unregistered(&bus_name, &items);
-                        }
-                        TrayEvent::ServiceDisconnected(bus_name) => {
-                            handle_item_unregistered(&bus_name, &items);
-                        }
-                    }
-                }
-            }
-        }
-    });
-
-    monitor_name_owner_changes(service).await?;
-    Ok(())
-}
-
-#[instrument(skip_all)]
-async fn handle_host_mode(service: &SystemTrayService) -> Result<(), Error> {
-    let watcher = StatusNotifierWatcherProxy::new(&service.connection).await?;
-
+/// Subscribes to the external watcher's item registration signals and forwards them.
+///
+/// Registered items carry a raw service string whose owner the registrar resolves.
+/// Unregistered items are correlated by that exact string, because an external watcher
+/// emits the string it stored *after* the owner has died (so the owner is no longer
+/// resolvable). Each item additionally arms its own owner-death watch inside the
+/// registrar, so removal still happens even if the external `Unregistered` is missed.
+pub(crate) async fn spawn_host_listeners(
+    connection: &Connection,
+    registrar: RegistrarHandle,
+    cancellation_token: CancellationToken,
+) -> Result<(), Error> {
+    let watcher = StatusNotifierWatcherProxy::new(connection).await?;
     let mut registered = watcher.receive_status_notifier_item_registered().await?;
     let mut unregistered = watcher.receive_status_notifier_item_unregistered().await?;
 
-    let items = service.items.clone();
-    let connection = service.connection.clone();
-    let cancellation_token = service.cancellation_token.clone();
-
     tokio::spawn(async move {
         loop {
             tokio::select! {
-                _ = cancellation_token.cancelled() => {
-                    info!("Systray host monitoring cancelled");
+                () = cancellation_token.cancelled() => {
+                    info!("Systray host listeners cancelled");
                     return;
                 }
                 Some(signal) = registered.next() => {
-                    if let Ok(args) = signal.args()
-                        && let Err(error) = handle_item_registered(
-                            &args.service,
-                            &items,
-                            &connection,
-                            &cancellation_token,
-                        )
-                        .await
-                        {
-                            warn!(error = %error, service = %args.service, "cannot handle registration");
-                        }
+                    if let Ok(args) = signal.args() {
+                        registrar.register(args.service.to_string(), None);
+                    }
                 }
                 Some(signal) = unregistered.next() => {
                     if let Ok(args) = signal.args() {
-                        handle_item_unregistered(&args.service, &items);
+                        registrar.remove_by_service(args.service.to_string());
                     }
-                }
-            }
-        }
-    });
-
-    Ok(())
-}
-
-#[instrument(
-    skip(connection, items, cancellation_token),
-    fields(bus_name = %bus_name),
-    err
-)]
-pub(crate) async fn handle_item_registered(
-    bus_name: &str,
-    items: &Property<Vec<Arc<TrayItem>>>,
-    connection: &Connection,
-    cancellation_token: &CancellationToken,
-) -> Result<(), Error> {
-    let params = LiveTrayItemParams {
-        connection,
-        service: bus_name.to_string(),
-        cancellation_token,
-    };
-    let item = TrayItem::get_live(params).await?;
-
-    let mut list = items.get();
-    list.retain(|existing| existing.bus_name.get() != bus_name);
-    list.push(item);
-    items.set(list);
-
-    debug!("Item registered: {}", bus_name);
-    Ok(())
-}
-
-#[instrument(skip(items), fields(bus_name = %bus_name))]
-fn handle_item_unregistered(bus_name: &str, items: &Property<Vec<Arc<TrayItem>>>) {
-    let mut list = items.get();
-    list.retain(|item| {
-        if item.bus_name.get() != bus_name {
-            return true;
-        }
-        if let Some(token) = item.cancellation_token.as_ref() {
-            token.cancel();
-        }
-        false
-    });
-    items.set(list);
-
-    debug!("Item unregistered: {}", bus_name);
-}
-
-#[instrument(skip(service), err)]
-async fn monitor_name_owner_changes(service: &SystemTrayService) -> Result<(), Error> {
-    let dbus_proxy = match DBusProxy::new(&service.connection).await {
-        Ok(proxy) => proxy,
-        Err(error) => {
-            warn!(error = %error, "cannot create dbus proxy for name monitoring");
-            return Ok(());
-        }
-    };
-
-    let mut name_owner_changed = match dbus_proxy.receive_name_owner_changed().await {
-        Ok(stream) => stream,
-        Err(error) => {
-            warn!(error = %error, "cannot subscribe to NameOwnerChanged");
-            return Ok(());
-        }
-    };
-
-    let event_tx = service.event_tx.clone();
-    let items = service.items.clone();
-    let cancellation_token = service.cancellation_token.clone();
-
-    tokio::spawn(async move {
-        loop {
-            tokio::select! {
-                _ = cancellation_token.cancelled() => {
-                    return;
-                }
-                Some(signal) = name_owner_changed.next() => {
-                    let Ok(args) = signal.args() else {
-                        continue;
-                    };
-
-                    if args.new_owner.is_some() {
-                        continue;
-                    }
-
-                    let list = items.get();
-                    if !list.iter().any(|item| item.bus_name.get() == args.name.to_string()) {
-                        continue;
-                    }
-
-                    let _ = event_tx.send(TrayEvent::ServiceDisconnected(args.name.to_string()));
                 }
             }
         }
