@@ -18,7 +18,7 @@ pub trait WayleNotifications {
     async fn dismiss_all(&self) -> Result<()>;
 
     /// Dismisses a specific notification by ID.
-    async fn dismiss(&self, id: u32) -> Result<()>;
+    async fn dismiss(&self, id: i64) -> Result<()>;
 
     /// Sets Do Not Disturb mode.
     async fn set_dnd(&self, enabled: bool) -> Result<()>;
@@ -32,7 +32,7 @@ pub trait WayleNotifications {
     /// Lists all notifications.
     ///
     /// Returns a list of tuples: (id, app_name, summary, body).
-    async fn list(&self) -> Result<Vec<(u32, String, String, String)>>;
+    async fn list(&self) -> Result<Vec<(i64, String, String, String)>>;
 
     /// Do Not Disturb status.
     #[zbus(property)]

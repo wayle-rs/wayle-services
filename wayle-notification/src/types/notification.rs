@@ -1,5 +1,7 @@
 use std::{fmt, str::FromStr};
 
+use serde::{Deserialize, Serialize};
+
 /// The urgency level of a notification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -24,8 +26,83 @@ impl From<u8> for Urgency {
     }
 }
 
+/// The priority of a notification on the 4-level scale shared by `GNotification` and the
+/// XDG Desktop Portal.
+///
+/// The freedesktop.org spec has only three urgencies and cannot express [`High`]; both
+/// `org.gtk.Notifications` and `org.freedesktop.impl.portal.Notification` use these four
+/// levels. This is the unified level intended for display (four distinct styles).
+/// [`Urgency`] is retained as the freedesktop-compatible 3-level projection for backward
+/// compatibility.
+///
+/// [`High`]: Priority::High
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[repr(u8)]
+pub enum Priority {
+    /// Low priority.
+    Low = 0,
+    /// Normal priority. The default when unspecified.
+    #[default]
+    Normal = 1,
+    /// High priority: above normal, below urgent. Freedesktop notifications cannot express
+    /// this level; it projects to [`Urgency::Normal`].
+    High = 2,
+    /// Urgent priority. Urgent notifications do not automatically expire.
+    Urgent = 3,
+}
+
+impl From<u8> for Priority {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => Self::Low,
+            2 => Self::High,
+            3 => Self::Urgent,
+            _ => Self::Normal,
+        }
+    }
+}
+
+impl From<Urgency> for Priority {
+    /// Lifts a freedesktop urgency onto the 4-level scale. Freedesktop has no `High`, so
+    /// `Critical` maps to [`Priority::Urgent`].
+    fn from(urgency: Urgency) -> Self {
+        match urgency {
+            Urgency::Low => Self::Low,
+            Urgency::Normal => Self::Normal,
+            Urgency::Critical => Self::Urgent,
+        }
+    }
+}
+
+impl From<Priority> for Urgency {
+    /// Projects the 4-level [`Priority`] back onto the freedesktop 3-level urgency scale: `High`
+    /// has no freedesktop equivalent and collapses to `Normal`.
+    fn from(priority: Priority) -> Self {
+        match priority {
+            Priority::Low => Self::Low,
+            Priority::Normal | Priority::High => Self::Normal,
+            Priority::Urgent => Self::Critical,
+        }
+    }
+}
+
+impl FromStr for Priority {
+    type Err = ();
+
+    /// Parses a `GNotification` / portal priority string (`low`, `normal`, `high`,
+    /// `urgent`). Unknown values fall back to `Normal`.
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "low" => Self::Low,
+            "high" => Self::High,
+            "urgent" => Self::Urgent,
+            _ => Self::Normal,
+        })
+    }
+}
+
 /// The reason a notification was closed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[repr(u32)]
 pub enum ClosedReason {
     /// The notification expired.
@@ -145,7 +222,7 @@ impl fmt::Display for Capabilities {
 }
 
 /// Standard notification categories.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Category {
     /// A generic audio or video call notification that doesn't fit into any other category.
     Call,
@@ -155,6 +232,8 @@ pub enum Category {
     CallIncoming,
     /// An incoming audio or video call was not answered.
     CallUnanswered,
+    /// An audio or video call is ongoing (portal v2).
+    CallOngoing,
     /// A generic device-related notification that doesn't fit into any other category.
     Device,
     /// A device, such as a USB device, was added to the system.
@@ -200,6 +279,26 @@ pub enum Category {
     TransferComplete,
     /// A file transfer or download error.
     TransferError,
+    /// A web notification from a browser (portal v2) — a top desktop notification source.
+    BrowserWebNotification,
+    /// A low-battery warning (portal v2).
+    OsBatteryLow,
+    /// An alarm is ringing (portal v2).
+    AlarmRinging,
+    /// An extreme weather warning (portal v2).
+    WeatherWarningExtreme,
+    /// A presidential-level cell-broadcast alert (portal v2).
+    CellbroadcastDangerPresidential,
+    /// An extreme-danger cell-broadcast alert (portal v2).
+    CellbroadcastDangerExtreme,
+    /// A severe-danger cell-broadcast alert (portal v2).
+    CellbroadcastDangerSevere,
+    /// A public-safety cell-broadcast alert (portal v2).
+    CellbroadcastPublicSafety,
+    /// An AMBER (child-abduction) cell-broadcast alert (portal v2).
+    CellbroadcastAmberAlert,
+    /// A cell-broadcast test message (portal v2).
+    CellbroadcastTest,
     /// Vendor-specific category.
     Vendor(String),
 }
@@ -213,6 +312,7 @@ impl FromStr for Category {
             "call.ended" => Self::CallEnded,
             "call.incoming" => Self::CallIncoming,
             "call.unanswered" => Self::CallUnanswered,
+            "call.ongoing" => Self::CallOngoing,
             "device" => Self::Device,
             "device.added" => Self::DeviceAdded,
             "device.error" => Self::DeviceError,
@@ -233,6 +333,16 @@ impl FromStr for Category {
             "transfer" => Self::Transfer,
             "transfer.complete" => Self::TransferComplete,
             "transfer.error" => Self::TransferError,
+            "browser.web-notification" => Self::BrowserWebNotification,
+            "os.battery.low" => Self::OsBatteryLow,
+            "alarm.ringing" => Self::AlarmRinging,
+            "weather.warning.extreme" => Self::WeatherWarningExtreme,
+            "cellbroadcast.danger.presidential" => Self::CellbroadcastDangerPresidential,
+            "cellbroadcast.danger.extreme" => Self::CellbroadcastDangerExtreme,
+            "cellbroadcast.danger.severe" => Self::CellbroadcastDangerSevere,
+            "cellbroadcast.public-safety" => Self::CellbroadcastPublicSafety,
+            "cellbroadcast.amber-alert" => Self::CellbroadcastAmberAlert,
+            "cellbroadcast.test" => Self::CellbroadcastTest,
             s if s.starts_with("x-") => Self::Vendor(s.to_string()),
             _ => Self::Vendor(format!("x-unknown-{s}")),
         })
@@ -240,6 +350,69 @@ impl FromStr for Category {
 }
 
 impl Category {
+    /// The category strings this server recognizes as typed variants. Advertised via the portal
+    /// `SupportedOptions["category"]` so the frontend doesn't down-convert / strip categories it
+    /// can't confirm are handled. Kept in sync with [`FromStr`](Self::from_str).
+    pub const KNOWN: &'static [&'static str] = &[
+        "call",
+        "call.ended",
+        "call.incoming",
+        "call.unanswered",
+        "call.ongoing",
+        "device",
+        "device.added",
+        "device.error",
+        "device.removed",
+        "email",
+        "email.arrived",
+        "email.bounced",
+        "im",
+        "im.error",
+        "im.received",
+        "network",
+        "network.connected",
+        "network.disconnected",
+        "network.error",
+        "presence",
+        "presence.offline",
+        "presence.online",
+        "transfer",
+        "transfer.complete",
+        "transfer.error",
+        "browser.web-notification",
+        "os.battery.low",
+        "alarm.ringing",
+        "weather.warning.extreme",
+        "cellbroadcast.danger.presidential",
+        "cellbroadcast.danger.extreme",
+        "cellbroadcast.danger.severe",
+        "cellbroadcast.public-safety",
+        "cellbroadcast.amber-alert",
+        "cellbroadcast.test",
+    ];
+
+    /// The exact category taxonomy defined by `org.freedesktop.portal.Notification` v2 — what the
+    /// portal backend advertises via `SupportedOptions["category"]`. This is a specific subset
+    /// (and superset) of the freedesktop set: it excludes fdo-only categories (email/device/
+    /// network/presence/transfer/…) and includes the portal-only emergency ones. Keep in sync
+    /// with the interface XML.
+    pub const PORTAL: &'static [&'static str] = &[
+        "im.received",
+        "alarm.ringing",
+        "call.incoming",
+        "call.ongoing",
+        "call.unanswered",
+        "weather.warning.extreme",
+        "cellbroadcast.danger.presidential",
+        "cellbroadcast.danger.extreme",
+        "cellbroadcast.danger.severe",
+        "cellbroadcast.public-safety",
+        "cellbroadcast.amber-alert",
+        "cellbroadcast.test",
+        "os.battery.low",
+        "browser.web-notification",
+    ];
+
     /// Convert to string representation for hints.
     pub fn as_str(&self) -> &str {
         match self {
@@ -247,6 +420,7 @@ impl Category {
             Self::CallEnded => "call.ended",
             Self::CallIncoming => "call.incoming",
             Self::CallUnanswered => "call.unanswered",
+            Self::CallOngoing => "call.ongoing",
             Self::Device => "device",
             Self::DeviceAdded => "device.added",
             Self::DeviceError => "device.error",
@@ -267,24 +441,83 @@ impl Category {
             Self::Transfer => "transfer",
             Self::TransferComplete => "transfer.complete",
             Self::TransferError => "transfer.error",
+            Self::BrowserWebNotification => "browser.web-notification",
+            Self::OsBatteryLow => "os.battery.low",
+            Self::AlarmRinging => "alarm.ringing",
+            Self::WeatherWarningExtreme => "weather.warning.extreme",
+            Self::CellbroadcastDangerPresidential => "cellbroadcast.danger.presidential",
+            Self::CellbroadcastDangerExtreme => "cellbroadcast.danger.extreme",
+            Self::CellbroadcastDangerSevere => "cellbroadcast.danger.severe",
+            Self::CellbroadcastPublicSafety => "cellbroadcast.public-safety",
+            Self::CellbroadcastAmberAlert => "cellbroadcast.amber-alert",
+            Self::CellbroadcastTest => "cellbroadcast.test",
             Self::Vendor(s) => s,
         }
     }
 }
 
-/// An action that can be invoked on a notification.
+/// The purpose of a notification button (XDG portal v2), letting a shell treat certain
+/// buttons specially (e.g. accent an accept/decline, or an alarm's custom alert). These are
+/// the seven spec-defined purposes; anything else is preserved verbatim. Portal-only;
+/// freedesktop/GNotification buttons have no purpose.
 ///
-/// Actions are sent over as a list of pairs. Each even element in the list
-/// (starting at index 0) represents the identifier for the action. Each odd
-/// element in the list is the localized string that will be displayed to the user.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Action {
-    /// The identifier for the action. The default action (usually invoked by clicking
-    /// the notification) should have a key named "default".
-    pub id: String,
-    /// The localized string that will be displayed to the user.
-    pub label: String,
+/// Note `im.reply-with-text` is *not* represented here as a button — the crate lifts it into
+/// [`Actions::reply`](crate::core::types::Actions::reply) (an inline text-reply affordance)
+/// rather than a plain button; the variant exists only so the adapter can recognize it.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ButtonPurpose {
+    /// A custom system alert (e.g. an alarm or timer), defined outside the categories.
+    SystemCustomAlert,
+    /// An inline text reply (IM). Lifted into [`Actions::reply`](crate::core::types::Actions),
+    /// not surfaced as a button.
+    ImReplyWithText,
+    /// Accept an incoming call.
+    CallAccept,
+    /// Decline an incoming call.
+    CallDecline,
+    /// Hang up an ongoing call.
+    CallHangUp,
+    /// Enable the speakerphone for an ongoing call.
+    CallEnableSpeakerphone,
+    /// Disable the speakerphone for an ongoing call.
+    CallDisableSpeakerphone,
+    /// Any other (e.g. vendor `x-*`) purpose, preserved verbatim.
+    Other(String),
 }
+
+impl FromStr for ButtonPurpose {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "system.custom-alert" => Self::SystemCustomAlert,
+            "im.reply-with-text" => Self::ImReplyWithText,
+            "call.accept" => Self::CallAccept,
+            "call.decline" => Self::CallDecline,
+            "call.hang-up" => Self::CallHangUp,
+            "call.enable-speakerphone" => Self::CallEnableSpeakerphone,
+            "call.disable-speakerphone" => Self::CallDisableSpeakerphone,
+            other => Self::Other(other.to_owned()),
+        })
+    }
+}
+
+impl ButtonPurpose {
+    /// The purpose's string form.
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::SystemCustomAlert => "system.custom-alert",
+            Self::ImReplyWithText => "im.reply-with-text",
+            Self::CallAccept => "call.accept",
+            Self::CallDecline => "call.decline",
+            Self::CallHangUp => "call.hang-up",
+            Self::CallEnableSpeakerphone => "call.enable-speakerphone",
+            Self::CallDisableSpeakerphone => "call.disable-speakerphone",
+            Self::Other(purpose) => purpose,
+        }
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -316,6 +549,44 @@ mod tests {
         let result = Urgency::from(5);
 
         assert_eq!(result, Urgency::Normal);
+    }
+
+    #[test]
+    fn priority_from_str_maps_all_four_levels() {
+        assert_eq!("low".parse::<Priority>().unwrap(), Priority::Low);
+        assert_eq!("normal".parse::<Priority>().unwrap(), Priority::Normal);
+        assert_eq!("high".parse::<Priority>().unwrap(), Priority::High);
+        assert_eq!("urgent".parse::<Priority>().unwrap(), Priority::Urgent);
+        assert_eq!("bogus".parse::<Priority>().unwrap(), Priority::Normal);
+    }
+
+    #[test]
+    fn priority_u8_round_trips() {
+        for priority in [
+            Priority::Low,
+            Priority::Normal,
+            Priority::High,
+            Priority::Urgent,
+        ] {
+            assert_eq!(Priority::from(priority as u8), priority);
+        }
+    }
+
+    #[test]
+    fn priority_projects_to_urgency_collapsing_high() {
+        // High has no freedesktop equivalent and must collapse to Normal (prior behavior).
+        assert_eq!(Urgency::from(Priority::Low), Urgency::Low);
+        assert_eq!(Urgency::from(Priority::Normal), Urgency::Normal);
+        assert_eq!(Urgency::from(Priority::High), Urgency::Normal);
+        assert_eq!(Urgency::from(Priority::Urgent), Urgency::Critical);
+    }
+
+    #[test]
+    fn urgency_lifts_to_priority_without_high() {
+        // freedesktop urgencies round-trip through Priority (Critical <-> Urgent).
+        assert_eq!(Priority::from(Urgency::Low), Priority::Low);
+        assert_eq!(Priority::from(Urgency::Normal), Priority::Normal);
+        assert_eq!(Priority::from(Urgency::Critical), Priority::Urgent);
     }
 
     #[test]
@@ -423,6 +694,20 @@ mod tests {
         let result = "call".parse::<Category>().unwrap();
 
         assert_eq!(result, Category::Call);
+    }
+
+    /// Guards the advertised `Category::KNOWN` list against drifting from `FromStr`/`as_str`:
+    /// every advertised string must parse to a typed (non-`Vendor`) variant and round-trip.
+    #[test]
+    fn known_categories_parse_to_typed_variants_and_round_trip() {
+        for string in Category::KNOWN {
+            let category: Category = string.parse().expect("known category parses");
+            assert!(
+                !matches!(category, Category::Vendor(_)),
+                "advertised category {string} fell through to Vendor"
+            );
+            assert_eq!(category.as_str(), *string, "{string} did not round-trip");
+        }
     }
 
     #[test]

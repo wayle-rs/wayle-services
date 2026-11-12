@@ -1,0 +1,16 @@
+[package]
+name = "wayle-portal"
+description = "XDG Desktop Portal backend hosting for wayle: a shared org.freedesktop.impl.portal.desktop.* connection plus .portal manifest helpers"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+tracing.workspace = true
+zbus.workspace = true
+
+[lints]
+workspace = true

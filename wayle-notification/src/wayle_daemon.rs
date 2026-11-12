@@ -3,7 +3,10 @@ use std::sync::Arc;
 use tracing::instrument;
 use zbus::{fdo, interface};
 
-use crate::{events::NotificationEvent, service::NotificationService, types::ClosedReason};
+use crate::{
+    core::types::NotificationId, events::NotificationEvent, service::NotificationService,
+    types::ClosedReason,
+};
 
 #[derive(Debug)]
 pub(crate) struct WayleDaemon {
@@ -21,12 +24,15 @@ impl WayleDaemon {
             .map_err(|err| fdo::Error::Failed(err.to_string()))
     }
 
-    /// Dismisses a specific notification by ID.
+    /// Dismisses a specific notification by its identity (as returned from [`list`](Self::list)).
     #[instrument(skip(self), fields(id = id))]
-    pub async fn dismiss(&self, id: u32) -> fdo::Result<()> {
+    pub async fn dismiss(&self, id: i64) -> fdo::Result<()> {
         self.service
             .notif_tx
-            .send(NotificationEvent::Remove(id, ClosedReason::DismissedByUser))
+            .send(NotificationEvent::Remove(
+                NotificationId::new(id),
+                ClosedReason::DismissedByUser,
+            ))
             .map_err(|err| fdo::Error::Failed(err.to_string()))?;
         Ok(())
     }
@@ -59,17 +65,21 @@ impl WayleDaemon {
     ///
     /// Returns a list of tuples: (id, app_name, summary, body).
     #[instrument(skip(self))]
-    pub async fn list(&self) -> Vec<(u32, String, String, String)> {
+    pub async fn list(&self) -> Vec<(i64, String, String, String)> {
         self.service
             .notifications
             .get()
             .iter()
             .map(|notif| {
+                let content = notif.view.get().content;
                 (
-                    notif.id,
-                    notif.app_name.get().unwrap_or_default(),
-                    notif.summary.get(),
-                    notif.body.get().unwrap_or_default(),
+                    notif.id.get(),
+                    notif.view.get().origin.name.unwrap_or_default(),
+                    content.summary,
+                    content
+                        .body
+                        .map(|body| body.text().to_owned())
+                        .unwrap_or_default(),
                 )
             })
             .collect()
