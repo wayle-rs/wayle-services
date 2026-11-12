@@ -8,7 +8,7 @@ use wayle_traits::ServiceMonitoring;
 use zbus::Connection;
 
 use crate::{
-    core::notification::Notification,
+    core::notification::{Notification, expiry_delay},
     error::Error,
     events::NotificationEvent,
     persistence::NotificationStore,
@@ -168,11 +168,11 @@ fn handle_notification_added(
         return;
     }
 
-    let Some(ttl) = notif_arc.expire_timeout.get() else {
+    let Some(delay) = expiry_delay(notif_arc.expire_timeout.get()) else {
         return;
     };
 
-    let expiration_time = notif_arc.timestamp.get() + Duration::from_millis(ttl as u64);
+    let expiration_time = notif_arc.timestamp.get() + delay;
     let now = Utc::now();
 
     if expiration_time <= now {
