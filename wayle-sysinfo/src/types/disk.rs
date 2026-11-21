@@ -3,6 +3,9 @@ use std::path::PathBuf;
 /// Disk metrics for a single mount point.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DiskData {
+    /// Name of the disk.
+    pub name: String,
+
     /// Mount point path (e.g., "/", "/home").
     pub mount_point: PathBuf,
 
@@ -20,4 +23,7 @@ pub struct DiskData {
 
     /// Disk usage percentage (0.0 - 100.0).
     pub usage_percent: f32,
+
+    /// If the disk is removable.
+    pub is_removable: bool,
 }

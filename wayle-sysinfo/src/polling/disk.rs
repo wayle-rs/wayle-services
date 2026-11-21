@@ -49,12 +49,14 @@ pub(crate) fn spawn(
                     };
 
                     DiskData {
+                        name: disk.name().to_string_lossy().into_owned(),
                         mount_point: disk.mount_point().to_path_buf(),
                         filesystem: disk.file_system().to_string_lossy().to_string(),
                         total_bytes: total,
                         used_bytes: used,
                         available_bytes: available,
                         usage_percent,
+                        is_removable: disk.is_removable(),
                     }
                 })
                 .collect();
