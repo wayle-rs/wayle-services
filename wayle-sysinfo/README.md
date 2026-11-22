@@ -4,7 +4,7 @@
 
 # wayle-sysinfo
 
-CPU, memory, disk, and network metrics via polling-based background tasks.
+CPU, memory, disk, network, and NVIDIA GPU metrics via polling-based background tasks.
 
 [![Crates.io](https://img.shields.io/crates/v/wayle-sysinfo)](https://crates.io/crates/wayle-sysinfo)
 [![docs.rs](https://img.shields.io/docsrs/wayle-sysinfo)](https://docs.rs/wayle-sysinfo)
@@ -30,6 +30,13 @@ async fn example() {
 
     let memory = service.memory.get();
     println!("Memory: {:.1}%", memory.usage_percent);
+
+    let gpu = service.gpu.get();
+    println!(
+        "GPUs: {} (avg util: {:.1}%)",
+        gpu.total_count,
+        gpu.average_utilization_percent
+    );
 
     let mut stream = service.cpu.watch();
     while let Some(cpu) = stream.next().await {

@@ -7,13 +7,14 @@ use wayle_core::Property;
 use crate::{
     polling,
     service::SysinfoService,
-    types::{CpuData, DiskData, MemoryData, NetworkData},
+    types::{CpuData, DiskData, GpuData, MemoryData, NetworkData},
 };
 
 const DEFAULT_CPU_INTERVAL: Duration = Duration::from_secs(2);
 const DEFAULT_MEMORY_INTERVAL: Duration = Duration::from_secs(5);
 const DEFAULT_DISK_INTERVAL: Duration = Duration::from_secs(30);
 const DEFAULT_NETWORK_INTERVAL: Duration = Duration::from_secs(2);
+const DEFAULT_GPU_INTERVAL: Duration = Duration::from_secs(2);
 
 /// Builder for configuring a [`SysinfoService`].
 pub struct SysinfoServiceBuilder {
@@ -21,6 +22,7 @@ pub struct SysinfoServiceBuilder {
     memory_interval: Duration,
     disk_interval: Duration,
     network_interval: Duration,
+    gpu_interval: Duration,
     cpu_temp_sensor: String,
 }
 
@@ -32,6 +34,7 @@ impl SysinfoServiceBuilder {
             memory_interval: DEFAULT_MEMORY_INTERVAL,
             disk_interval: DEFAULT_DISK_INTERVAL,
             network_interval: DEFAULT_NETWORK_INTERVAL,
+            gpu_interval: DEFAULT_GPU_INTERVAL,
             cpu_temp_sensor: String::from("auto"),
         }
     }
@@ -60,6 +63,12 @@ impl SysinfoServiceBuilder {
         self
     }
 
+    /// Sets the GPU polling interval.
+    pub fn gpu_interval(mut self, interval: Duration) -> Self {
+        self.gpu_interval = interval;
+        self
+    }
+
     /// Sets the CPU temperature sensor label.
     ///
     /// Use `"auto"` for automatic detection, or specify a sensor label
@@ -78,6 +87,7 @@ impl SysinfoServiceBuilder {
         let memory = Property::new(MemoryData::default());
         let disks = Property::new(Vec::<DiskData>::new());
         let network = Property::new(Vec::<NetworkData>::new());
+        let gpu = Property::new(GpuData::default());
 
         let tokens = polling::spawn_polling_tasks(
             &cancellation_token,
@@ -85,10 +95,12 @@ impl SysinfoServiceBuilder {
             &memory,
             &disks,
             &network,
+            &gpu,
             self.cpu_interval,
             self.memory_interval,
             self.disk_interval,
             self.network_interval,
+            self.gpu_interval,
             self.cpu_temp_sensor.clone(),
         );
 
@@ -98,12 +110,15 @@ impl SysinfoServiceBuilder {
             memory_token: RwLock::new(tokens.memory),
             disk_token: RwLock::new(tokens.disk),
             network_token: RwLock::new(tokens.network),
+            gpu_token: RwLock::new(tokens.gpu),
             cpu_interval: RwLock::new(self.cpu_interval),
+            gpu_interval: RwLock::new(self.gpu_interval),
             cpu_temp_sensor: RwLock::new(self.cpu_temp_sensor),
             cpu,
             memory,
             disks,
             network,
+            gpu,
         }
     }
 }

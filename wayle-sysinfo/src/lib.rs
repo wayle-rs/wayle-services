@@ -1,6 +1,6 @@
 //! System information monitoring service.
 //!
-//! Provides reactive access to CPU, memory, disk, and network metrics
+//! Provides reactive access to CPU, memory, disk, network, and GPU metrics
 //! via polling-based background tasks.
 //!
 //! # Quick Start
@@ -16,6 +16,12 @@
 //!
 //! let memory = service.memory.get();
 //! println!("Memory: {:.1}%", memory.usage_percent);
+//!
+//! let gpu = service.gpu.get();
+//! println!(
+//!     "GPUs: {}, avg util: {:.1}%",
+//!     gpu.total_count, gpu.average_utilization_percent
+//! );
 //! ```
 //!
 //! # Reactive Streams
@@ -32,6 +38,11 @@
 //! let mut cpu_stream = service.cpu.watch();
 //! while let Some(cpu) = cpu_stream.next().await {
 //!     println!("CPU changed: {:.1}%", cpu.usage_percent);
+//! }
+//!
+//! let mut gpu_stream = service.gpu.watch();
+//! while let Some(gpu) = gpu_stream.next().await {
+//!     println!("GPU devices changed: {}", gpu.total_count);
 //! }
 //! # }
 //! ```

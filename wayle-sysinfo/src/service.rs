@@ -7,10 +7,10 @@ use wayle_core::Property;
 use crate::{
     builder::SysinfoServiceBuilder,
     polling,
-    types::{CpuData, DiskData, MemoryData, NetworkData},
+    types::{CpuData, DiskData, GpuData, MemoryData, NetworkData},
 };
 
-/// System information service for monitoring CPU, memory, disk, and network.
+/// System information service for monitoring CPU, memory, disk, network, and GPU.
 ///
 /// Provides reactive properties that update at configurable intervals.
 /// All metrics are polled in the background and exposed via `Property<T>`
@@ -24,7 +24,9 @@ pub struct SysinfoService {
     pub(crate) memory_token: RwLock<CancellationToken>,
     pub(crate) disk_token: RwLock<CancellationToken>,
     pub(crate) network_token: RwLock<CancellationToken>,
+    pub(crate) gpu_token: RwLock<CancellationToken>,
     pub(crate) cpu_interval: RwLock<Duration>,
+    pub(crate) gpu_interval: RwLock<Duration>,
     pub(crate) cpu_temp_sensor: RwLock<String>,
 
     /// CPU metrics including usage, frequency, and temperature.
@@ -38,6 +40,9 @@ pub struct SysinfoService {
 
     /// Network metrics for all interfaces.
     pub network: Property<Vec<NetworkData>>,
+
+    /// GPU metrics including per-device utilization, memory usage, and temperature.
+    pub gpu: Property<GpuData>,
 }
 
 impl SysinfoService {
@@ -115,6 +120,26 @@ impl SysinfoService {
         if let Ok(mut guard) = self.network_token.write() {
             guard.cancel();
             polling::network::spawn(new_token.clone(), self.network.clone(), interval);
+            *guard = new_token;
+        }
+    }
+
+    /// Updates the GPU polling interval.
+    pub fn set_gpu_interval(&self, interval: Duration) {
+        debug!(?interval, "Updating GPU polling interval");
+        if let Ok(mut guard) = self.gpu_interval.write() {
+            *guard = interval;
+        }
+        self.restart_gpu_polling();
+    }
+
+    fn restart_gpu_polling(&self) {
+        let interval = self.gpu_interval.read().map(|g| *g).unwrap_or_default();
+
+        let new_token = self.cancellation_token.child_token();
+        if let Ok(mut guard) = self.gpu_token.write() {
+            guard.cancel();
+            polling::gpu::spawn(new_token.clone(), self.gpu.clone(), interval);
             *guard = new_token;
         }
     }
