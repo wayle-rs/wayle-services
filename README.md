@@ -25,6 +25,7 @@ Reactive system service crates for Linux desktops. Each service exposes its stat
 | [wayle-power-profiles](https://docs.rs/wayle-power-profiles) | Power profile switching |
 | [wayle-sysinfo](https://docs.rs/wayle-sysinfo) | CPU, memory, disk, and network metrics |
 | [wayle-systray](https://docs.rs/wayle-systray) | System tray via StatusNotifier |
+| [wayle-triad](https://docs.rs/wayle-triad) | Triad compositor state and events |
 | [wayle-wallpaper](https://docs.rs/wayle-wallpaper) | Wallpaper management with color extraction |
 | [wayle-weather](https://docs.rs/wayle-weather) | Weather data with multi-provider support |
 
